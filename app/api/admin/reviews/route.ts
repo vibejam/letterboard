@@ -1,0 +1,23 @@
+import { NextResponse } from "next/server";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+
+export const runtime = "nodejs";
+function authorized(request: Request) { return Boolean(process.env.ADMIN_REVIEW_TOKEN && request.headers.get("authorization") === `Bearer ${process.env.ADMIN_REVIEW_TOKEN}`); }
+export async function GET(request: Request) {
+  if (!authorized(request)) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+  const supabase = getSupabaseAdmin(); if (!supabase) return NextResponse.json({ error: "BACKEND_NOT_CONFIGURED" }, { status: 503 });
+  const result = await supabase.from("claims").select("id,status,created_at,newsletters(id,title,canonical_url,ownership_status)").eq("status", "pending").order("created_at", { ascending: true });
+  return result.error ? NextResponse.json({ error: "REVIEW_UNAVAILABLE" }, { status: 503 }) : NextResponse.json({ reviews: result.data });
+}
+export async function POST(request: Request) {
+  if (!authorized(request)) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+  const supabase = getSupabaseAdmin(); if (!supabase) return NextResponse.json({ error: "BACKEND_NOT_CONFIGURED" }, { status: 503 });
+  const body = await request.json() as { claimId?: string; decision?: "approve" | "reject" };
+  if (!body.claimId || !body.decision) return NextResponse.json({ error: "INVALID_REVIEW" }, { status: 400 });
+  const status = body.decision === "approve" ? "confirmed" : "rejected";
+  const claim = await supabase.from("claims").update({ status }).eq("id", body.claimId).select("newsletter_id").single();
+  if (claim.error) return NextResponse.json({ error: "REVIEW_FAILED" }, { status: 500 });
+  await supabase.from("newsletters").update({ ownership_status: status, boardmark_status: body.decision === "approve" ? "confirmed" : "pending", confirmed_at: body.decision === "approve" ? new Date().toISOString() : null }).eq("id", claim.data.newsletter_id);
+  await supabase.from("admin_audit_log").insert({ action: `claim_${body.decision}`, target_id: claim.data.newsletter_id, metadata: { claimId: body.claimId } });
+  return NextResponse.json({ ok: true });
+}
