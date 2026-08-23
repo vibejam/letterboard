@@ -1,0 +1,7 @@
+<svg width="320" height="96" viewBox="0 0 320 96" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Letterboard Legend Boardmark</title><desc id="desc">Founding 100 Legend tier badge.</desc>
+  <rect x="1.5" y="1.5" width="317" height="93" rx="17" fill="#FAF9F5" stroke="#18366F" stroke-width="3"/><rect x="7" y="7" width="306" height="82" rx="12" stroke="#D9D7D0" stroke-width="1.5"/>
+  <rect x="25" y="22" width="48" height="52" stroke="#151515" stroke-width="2.5"/><path d="M42 31V64H61" stroke="#151515" stroke-width="3" stroke-linecap="square"/>
+  <path d="M91 25H111M91 36H111M91 47H111" stroke="#151515" stroke-width="3"/><path d="M91 66H111M91 77H111" stroke="#2A83D7" stroke-width="3"/><path d="M132 18V78" stroke="#151515" stroke-width="2"/>
+  <circle cx="178" cy="48" r="12" fill="#1675C9"/><text x="202" y="58" fill="#151515" font-family="Arial,Helvetica,sans-serif" font-size="25" font-weight="700" letter-spacing="1.4">LEGEND</text>
+</svg>
