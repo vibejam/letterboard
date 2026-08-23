@@ -18,6 +18,10 @@ export async function POST(request: Request) {
   const claim = await supabase.from("claims").update({ status }).eq("id", body.claimId).select("newsletter_id").single();
   if (claim.error) return NextResponse.json({ error: "REVIEW_FAILED" }, { status: 500 });
   await supabase.from("newsletters").update({ ownership_status: status, boardmark_status: body.decision === "approve" ? "confirmed" : "pending", confirmed_at: body.decision === "approve" ? new Date().toISOString() : null }).eq("id", claim.data.newsletter_id);
+  if (body.decision === "reject") {
+    await supabase.from("ownership_verifications").update({ used_at: new Date().toISOString() }).eq("claim_id", body.claimId).is("used_at", null);
+    await supabase.from("public_profiles").update({ is_published: false }).eq("newsletter_id", claim.data.newsletter_id);
+  }
   await supabase.from("admin_audit_log").insert({ action: `claim_${body.decision}`, target_id: claim.data.newsletter_id, metadata: { claimId: body.claimId } });
   return NextResponse.json({ ok: true });
 }

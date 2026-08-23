@@ -24,6 +24,5 @@ export async function resolvePublicMetadata(input: string) {
   const title = get('og:title') ?? html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.trim() ?? url.hostname;
   const description = get('og:description') ?? get('description');
   const image = get('og:image');
-  const contactEmail = html.match(/mailto:([^"'\s?]+)/i)?.[1]?.toLowerCase() ?? null;
-  return { ...normalized, title, description, logoUrl: image, contactEmail, sourcePlatform: /substack/i.test(html) ? 'substack' : /beehiiv/i.test(html) ? 'beehiiv' : 'independent', metadataStatus: 'ready' as const };
+  return { ...normalized, title, description, logoUrl: image, sourcePlatform: /substack/i.test(html) ? 'substack' : /beehiiv/i.test(html) ? 'beehiiv' : 'independent', metadataStatus: 'ready' as const };
 }
