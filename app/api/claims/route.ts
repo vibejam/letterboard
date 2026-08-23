@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin;
     let emailSent = false;
     if (body.contactEmail && process.env.RESEND_API_KEY) {
-      const email = await fetch("https://api.resend.com/emails", { method: "POST", headers: { authorization: `Bearer ${process.env.RESEND_API_KEY}`, "content-type": "application/json" }, body: JSON.stringify({ from: process.env.OWNERSHIP_EMAIL_FROM ?? "Letterboard <onboarding@letterboard.co>", to: [body.contactEmail], subject: "Confirm your Letterboard Founding 100 place", html: `<p>Confirm ownership of ${n.title} on Letterboard.</p><p><a href="${appUrl}/api/claims/confirm?token=${rawToken}">Confirm ownership</a></p><p>This link expires in 48 hours and can only be used once.</p>` }) });
+      const email = await fetch("https://api.resend.com/emails", { method: "POST", headers: { authorization: `Bearer ${process.env.RESEND_API_KEY}`, "content-type": "application/json" }, body: JSON.stringify({ from: process.env.OWNERSHIP_EMAIL_FROM ?? "Seth <seth@letterboard.lol>", to: [body.contactEmail], subject: "Confirm your Letterboard Founding 100 place", html: `<p>Confirm ownership of ${n.title} on Letterboard.</p><p><a href="${appUrl}/api/claims/confirm?token=${rawToken}">Confirm ownership</a></p><p>This link expires in 48 hours and can only be used once.</p>` }) });
       emailSent = email.ok;
     }
     return NextResponse.json({ claim: { id: claim.data.id, status: "pending", profileSlug: inserted.data.slug, ...(process.env.NODE_ENV !== "production" ? { confirmationUrl: `/api/claims/confirm?token=${rawToken}` } : {}) }, emailSent });
