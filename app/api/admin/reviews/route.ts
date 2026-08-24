@@ -14,10 +14,15 @@ export async function POST(request: Request) {
   const supabase = getSupabaseAdmin(); if (!supabase) return NextResponse.json({ error: "BACKEND_NOT_CONFIGURED" }, { status: 503 });
   const body = await request.json() as { claimId?: string; decision?: "approve" | "reject" };
   if (!body.claimId || !body.decision) return NextResponse.json({ error: "INVALID_REVIEW" }, { status: 400 });
-  const status = body.decision === "approve" ? "confirmed" : "rejected";
-  const claim = await supabase.from("claims").update({ status }).eq("id", body.claimId).select("newsletter_id").single();
+  if (body.decision === "approve") {
+    const confirmed = await supabase.rpc("confirm_claim_by_admin", { p_claim_id: body.claimId });
+    if (confirmed.error || !confirmed.data?.[0]) return NextResponse.json({ error: "REVIEW_FAILED" }, { status: 409 });
+    await supabase.from("admin_audit_log").insert({ action: "claim_approve", target_id: body.claimId, metadata: { foundingPosition: confirmed.data[0].founding_position, foundingTier: confirmed.data[0].founding_tier } });
+    return NextResponse.json({ ok: true, foundingPosition: confirmed.data[0].founding_position, foundingTier: confirmed.data[0].founding_tier });
+  }
+  const claim = await supabase.from("claims").update({ status: "rejected" }).eq("id", body.claimId).select("newsletter_id").single();
   if (claim.error) return NextResponse.json({ error: "REVIEW_FAILED" }, { status: 500 });
-  await supabase.from("newsletters").update({ ownership_status: status, boardmark_status: body.decision === "approve" ? "confirmed" : "pending", confirmed_at: body.decision === "approve" ? new Date().toISOString() : null }).eq("id", claim.data.newsletter_id);
+  await supabase.from("newsletters").update({ ownership_status: "rejected", boardmark_status: "pending", confirmed_at: null }).eq("id", claim.data.newsletter_id);
   if (body.decision === "reject") {
     await supabase.from("ownership_verifications").update({ used_at: new Date().toISOString() }).eq("claim_id", body.claimId).is("used_at", null);
     await supabase.from("public_profiles").update({ is_published: false }).eq("newsletter_id", claim.data.newsletter_id);

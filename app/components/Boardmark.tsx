@@ -28,8 +28,9 @@ function PendingBoardmark({ size }: { size: "small" | "medium" | "large" }) {
   </span>;
 }
 
-export function Boardmark({ status = "confirmed", tier = "pioneer", size = "medium" }: BoardmarkProps) {
+export function Boardmark({ status = "confirmed", tier, size = "medium" }: BoardmarkProps) {
   if (status === "pending") return <PendingBoardmark size={size} />;
+  if (!tier) return null;
   const label = tierLabels[tier];
   return <span className={`boardmark-art boardmark-art--${size}`} role="img" aria-label={`Letterboard ${label} Boardmark`}>
     <Image src={tierSources[tier]} alt={`${label} Boardmark`} width={320} height={96} unoptimized />

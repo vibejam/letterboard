@@ -23,5 +23,5 @@ export async function GET(request: Request) {
     if (message.includes("INVALID_VERIFICATION")) return NextResponse.json({ error: "EXPIRED_VERIFICATION" }, { status: 410 });
     return NextResponse.json({ error: "CONFIRMATION_FAILED" }, { status: 409 });
   }
-  return NextResponse.json({ confirmed: true, foundingPosition: confirmed.data[0].founding_position, profileSlug: confirmed.data[0].profile_slug });
+  return NextResponse.json({ confirmed: true, foundingPosition: confirmed.data[0].founding_position, foundingTier: confirmed.data[0].founding_tier, profileSlug: confirmed.data[0].profile_slug });
 }

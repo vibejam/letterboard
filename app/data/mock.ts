@@ -1,3 +1,5 @@
+import type { BoardmarkTier } from "../components/Boardmark";
+
 export type NewsletterStatus = "founding" | "pending" | "confirmed";
 
 export type Newsletter = {
@@ -12,22 +14,23 @@ export type Newsletter = {
   initials: string;
   tone: "ink" | "paper" | "blue" | "lime" | "coral" | "violet";
   status?: NewsletterStatus;
+  foundingTier?: BoardmarkTier;
 };
 
 const devFixturesEnabled = process.env.NEXT_PUBLIC_ENABLE_DEV_FIXTURES === "true";
 export const boardStats = devFixturesEnabled ? { online: 126, visitors: 8420, claimed: 37, total: 100 } : { online: 0, visitors: 0, claimed: 0, total: 100 };
 
 const fixtureLeaderboard: Newsletter[] = [
-  { id: "daily-signal", name: "The Daily Signal", url: "thedailysignal.co", description: "A sharp daily briefing for people building what comes next.", category: "Technology", bid: 842, clicks: 1204, lastSeen: "8 minutes ago", initials: "T", tone: "ink", status: "founding" },
-  { id: "founder-notes", name: "Founder Notes", url: "foundernotes.co", description: "Field notes on building companies with taste and patience.", category: "Business", bid: 631, clicks: 842, lastSeen: "12 minutes ago", initials: "F", tone: "paper", status: "founding" },
-  { id: "ai-morning", name: "AI Morning", url: "aimorning.news", description: "The useful AI stories, tools, and ideas worth carrying forward.", category: "Independent", bid: 418, clicks: 516, lastSeen: "18 minutes ago", initials: "A", tone: "blue", status: "founding" },
-  { id: "market-memo", name: "Market Memo", url: "marketmemo.email", description: "A clear-eyed read on markets, incentives, and momentum.", category: "Markets", bid: 375, clicks: 412, lastSeen: "24 minutes ago", initials: "M", tone: "violet", status: "founding" },
-  { id: "growth-dispatch", name: "Growth Dispatch", url: "growthdispatch.com", description: "Practical experiments for teams that want better growth loops.", category: "Business", bid: 312, clicks: 365, lastSeen: "31 minutes ago", initials: "G", tone: "lime", status: "founding" },
-  { id: "product-pulse", name: "Product Pulse", url: "productpulse.news", description: "The products, patterns, and people shaping the next interface.", category: "Technology", bid: 268, clicks: 298, lastSeen: "42 minutes ago", initials: "P", tone: "coral", status: "founding" },
-  { id: "in-focus", name: "In Focus", url: "infocus.letter", description: "Culture and ideas for a more considered internet.", category: "Culture", bid: 221, clicks: 254, lastSeen: "51 minutes ago", initials: "I", tone: "blue", status: "founding" },
-  { id: "strategy-stack", name: "Strategy Stack", url: "strategystack.co", description: "A weekly stack of decisions, frameworks, and useful edges.", category: "Work", bid: 187, clicks: 219, lastSeen: "1 hour ago", initials: "S", tone: "coral", status: "founding" },
-  { id: "workweek-brief", name: "Workweek Brief", url: "workweekbrief.com", description: "The small systems that make ambitious work feel lighter.", category: "Work", bid: 154, clicks: 188, lastSeen: "1 hour ago", initials: "W", tone: "violet", status: "founding" },
-  { id: "operator-journal", name: "Operator Journal", url: "operatorjournal.io", description: "Operating lessons from the people closest to the work.", category: "Operations", bid: 129, clicks: 162, lastSeen: "2 hours ago", initials: "O", tone: "lime", status: "founding" },
+  { id: "daily-signal", name: "The Daily Signal", url: "thedailysignal.co", description: "A sharp daily briefing for people building what comes next.", category: "Technology", bid: 842, clicks: 1204, lastSeen: "8 minutes ago", initials: "T", tone: "ink", status: "founding", foundingTier: "og" },
+  { id: "founder-notes", name: "Founder Notes", url: "foundernotes.co", description: "Field notes on building companies with taste and patience.", category: "Business", bid: 631, clicks: 842, lastSeen: "12 minutes ago", initials: "F", tone: "paper", status: "founding", foundingTier: "og" },
+  { id: "ai-morning", name: "AI Morning", url: "aimorning.news", description: "The useful AI stories, tools, and ideas worth carrying forward.", category: "Independent", bid: 418, clicks: 516, lastSeen: "18 minutes ago", initials: "A", tone: "blue", status: "founding", foundingTier: "og" },
+  { id: "market-memo", name: "Market Memo", url: "marketmemo.email", description: "A clear-eyed read on markets, incentives, and momentum.", category: "Markets", bid: 375, clicks: 412, lastSeen: "24 minutes ago", initials: "M", tone: "violet", status: "founding", foundingTier: "og" },
+  { id: "growth-dispatch", name: "Growth Dispatch", url: "growthdispatch.com", description: "Practical experiments for teams that want better growth loops.", category: "Business", bid: 312, clicks: 365, lastSeen: "31 minutes ago", initials: "G", tone: "lime", status: "founding", foundingTier: "og" },
+  { id: "product-pulse", name: "Product Pulse", url: "productpulse.news", description: "The products, patterns, and people shaping the next interface.", category: "Technology", bid: 268, clicks: 298, lastSeen: "42 minutes ago", initials: "P", tone: "coral", status: "founding", foundingTier: "legend" },
+  { id: "in-focus", name: "In Focus", url: "infocus.letter", description: "Culture and ideas for a more considered internet.", category: "Culture", bid: 221, clicks: 254, lastSeen: "51 minutes ago", initials: "I", tone: "blue", status: "founding", foundingTier: "legend" },
+  { id: "strategy-stack", name: "Strategy Stack", url: "strategystack.co", description: "A weekly stack of decisions, frameworks, and useful edges.", category: "Work", bid: 187, clicks: 219, lastSeen: "1 hour ago", initials: "S", tone: "coral", status: "founding", foundingTier: "legend" },
+  { id: "workweek-brief", name: "Workweek Brief", url: "workweekbrief.com", description: "The small systems that make ambitious work feel lighter.", category: "Work", bid: 154, clicks: 188, lastSeen: "1 hour ago", initials: "W", tone: "violet", status: "founding", foundingTier: "legend" },
+  { id: "operator-journal", name: "Operator Journal", url: "operatorjournal.io", description: "Operating lessons from the people closest to the work.", category: "Operations", bid: 129, clicks: 162, lastSeen: "2 hours ago", initials: "O", tone: "lime", status: "founding", foundingTier: "icon" },
 ];
 
 const fixtureActivity = [
