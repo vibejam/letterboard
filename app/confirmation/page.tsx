@@ -23,16 +23,19 @@ export default async function ConfirmationPage({ searchParams }: ConfirmationPag
     <section className="confirmation-card" aria-live="polite">
       <LetterboardMark />
       {confirmed ? <>
-        <p className="hero-label">OWNERSHIP CONFIRMED</p>
-        <h1>Your Founding 100 place is confirmed.</h1>
+        <p className="hero-label">FOUNDING STATUS CONFIRMED</p>
+        <h1>Your Founding Mark is active.</h1>
+        <p>Ownership confirmed. Your newsletter is now live on Letterboard.</p>
         <p className="confirmation-position">{displayPosition}</p>
         <h2>{title}</h2>
         <Boardmark status="confirmed" tier={tier} size="large" />
-        <div className="confirmation-actions"><Link className="primary-button" href={`/${slug}`}>View your public profile <span>→</span></Link><Link className="secondary-button" href="/">Return to the board</Link></div>
+        <p className="confirmation-private-note">Internal points stay private. They are never shown on your public profile.</p>
+        <p className="confirmation-profile-url">letterboard.lol/{slug}</p>
+        <div className="confirmation-actions"><Link className="primary-button" href={`/${slug}`}>View my public profile <span>→</span></Link><Link className="secondary-button" href="/">Return to the board</Link></div>
       </> : <>
         <p className="hero-label">CONFIRMATION LINK UNAVAILABLE</p>
-        <h1>This confirmation link is no longer valid.</h1>
-        <p>{error === "FOUNDING_100_FULL" ? "The Founding 100 is currently full." : "This link may be expired, already used, or invalid. Your profile remains unchanged."}</p>
+        <h1>{error === "MISSING_TOKEN" ? "No confirmation link was provided." : error === "ALREADY_CONFIRMED" ? "This place is already confirmed." : error === "FOUNDING_100_FULL" ? "The Founding 100 is currently full." : error === "CONFIRMATION_FAILED" || error === "RATE_LIMITED" ? "We could not confirm this place." : "This confirmation link is no longer valid."}</h1>
+        <p>{error === "MISSING_TOKEN" ? "Open the confirmation link from your email to continue." : error === "ALREADY_CONFIRMED" ? "This Founding Mark is already active. Your profile remains unchanged." : error === "FOUNDING_100_FULL" ? "The Founding 100 is currently full." : error === "CONFIRMATION_FAILED" || error === "RATE_LIMITED" ? "Please try again later or contact support if the problem continues." : "This link may be expired, invalid, or already used. Your profile remains unchanged."}</p>
         <Link className="primary-button" href="/">Return to the board <span>→</span></Link>
       </>}
     </section>

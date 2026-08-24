@@ -4,6 +4,7 @@ export type NewsletterStatus = "founding" | "pending" | "confirmed";
 
 export type Newsletter = {
   id: string;
+  slug?: string;
   name: string;
   url: string;
   description: string;
@@ -58,6 +59,7 @@ function boardmarkTier(value: string | null | undefined): BoardmarkTier | undefi
 export function mapBoardRow(row: BoardApiRow, index: number): Newsletter {
   return {
     id: row.id,
+    slug: row.slug,
     name: row.title,
     url: row.canonical_url,
     description: row.description ?? "A public newsletter on Letterboard.",

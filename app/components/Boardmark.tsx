@@ -21,7 +21,7 @@ export function tierForRank(rank: number): BoardmarkTier {
 }
 
 function PendingBoardmark({ size }: { size: "small" | "medium" | "large" }) {
-  return <span className={`boardmark boardmark--${size} boardmark--pending`} aria-label="Letterboard Founding 100 pending Boardmark">
+  return <span className={`boardmark boardmark--${size} boardmark--pending`} aria-label="Letterboard Founding 100 pending Founding Mark">
     <span className="boardmark__icon"><LetterboardMark compact /><BoardLines /></span>
     <span className="boardmark__ring" aria-hidden="true" />
     <span>FOUNDING 100 · PENDING</span>
@@ -32,8 +32,8 @@ export function Boardmark({ status = "confirmed", tier, size = "medium" }: Board
   if (status === "pending") return <PendingBoardmark size={size} />;
   if (!tier) return null;
   const label = tierLabels[tier];
-  return <span className={`boardmark-art boardmark-art--${size}`} role="img" aria-label={`Letterboard ${label} Boardmark`}>
-    <Image src={tierSources[tier]} alt={`${label} Boardmark`} width={320} height={96} unoptimized />
+  return <span className={`boardmark-art boardmark-art--${size}`} role="img" aria-label={`Letterboard ${label} Founding Mark`}>
+    <Image src={tierSources[tier]} alt={`${label} Founding Mark`} width={320} height={96} unoptimized />
   </span>;
 }
 

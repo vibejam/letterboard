@@ -12,6 +12,8 @@ const repairRoute = await readFile(new URL("../app/api/admin/claims/repair/route
 const boardRoute = await readFile(new URL("../app/api/board/route.ts", import.meta.url), "utf8");
 const profileRoute = await readFile(new URL("../app/api/profiles/[slug]/route.ts", import.meta.url), "utf8");
 const homePage = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+const leaderboard = await readFile(new URL("../app/components/Leaderboard.tsx", import.meta.url), "utf8");
+const boardmark = await readFile(new URL("../app/components/Boardmark.tsx", import.meta.url), "utf8");
 const confirmationPage = await readFile(new URL("../app/confirmation/page.tsx", import.meta.url), "utf8");
 const publicProfilePage = await readFile(new URL("../app/[slug]/page.tsx", import.meta.url), "utf8");
 const migration = await readFile(new URL("../supabase/migrations/20260823120000_ownership_confirmation_transaction.sql", import.meta.url), "utf8");
@@ -135,11 +137,33 @@ test("confirmation redirects to branded UI and removes the token from the visibl
   assert.match(confirmRoute, /status: "confirmed"/);
   assert.match(confirmRoute, /NextResponse\.redirect/);
   assert.doesNotMatch(confirmRoute, /NextResponse\.json/);
-  assert.match(confirmationPage, /Your Founding 100 place is confirmed\./);
-  assert.match(confirmationPage, /View your public profile/);
+  assert.match(confirmationPage, /Your Founding Mark is active\./);
+  assert.match(confirmationPage, /FOUNDING STATUS CONFIRMED/);
+  assert.match(confirmationPage, /View my public profile/);
   assert.match(confirmationPage, /Return to the board/);
   assert.match(confirmationPage, /This confirmation link is no longer valid/);
+  assert.match(confirmationPage, /ALREADY_CONFIRMED/);
+  assert.match(confirmRoute, /MISSING_TOKEN/);
+  assert.match(confirmRoute, /claim_id,expires_at,used_at/);
   assert.doesNotMatch(confirmationPage, /searchParams\.get\("token"\)|internal_points|contact_email/);
+});
+
+test("homepage presents Founding Mark onboarding copy and truthful empty states", () => {
+  assert.match(homePage, /Be one of the first 100 newsletters on Letterboard\./);
+  assert.match(homePage, /Claim a free public profile, secure your founding place, and carry your Founding Mark/);
+  assert.match(homePage, /Free to claim\. No card\. No pay-to-enter\./);
+  assert.match(homePage, /Paste your newsletter URL/);
+  assert.match(homePage, /Claim my place/);
+  assert.match(homePage, /OG 01–05 · LEGEND 06–10 · ICON 11–50 · PIONEER 51–100/);
+  assert.match(homePage, /Founding places claimed/);
+  assert.match(homePage, /Spotlight opens after the Founding 100 closes/);
+  assert.doesNotMatch(homePage, /visitors|online now|fake activity/i);
+  assert.match(leaderboard, /Who gets there first\?/);
+  assert.match(leaderboard, /Letterboard starts here\./);
+  assert.match(leaderboard, /The first verified newsletter takes #01 — and becomes the first OG\./);
+  assert.match(leaderboard, /Nothing moving yet\. You could start the first signal\./);
+  assert.match(leaderboard, /No activity yet\. The board is waiting on its first confirmation\./);
+  assert.match(boardmark, /Founding Mark/);
 });
 
 test("confirmed profiles flow from the transaction into the live board and public page", () => {

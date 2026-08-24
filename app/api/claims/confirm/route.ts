@@ -15,12 +15,17 @@ export async function GET(request: Request) {
   if (!rateLimit(`confirm:${request.headers.get("x-forwarded-for") ?? "unknown"}`, 12)) return confirmationRedirect(request, { error: "RATE_LIMITED" });
   const supabase = getSupabaseAdmin();
   const token = new URL(request.url).searchParams.get("token");
-  if (!supabase || !token || token.length > 256) return confirmationRedirect(request, { error: "INVALID_VERIFICATION" });
+  if (!supabase) return confirmationRedirect(request, { error: "CONFIRMATION_FAILED" });
+  if (!token || token.length > 256) return confirmationRedirect(request, { error: token ? "INVALID_VERIFICATION" : "MISSING_TOKEN" });
 
   const hash = createHash("sha256").update(token).digest("hex");
-  const existing = await supabase.from("ownership_verifications").select("expires_at,used_at").eq("token_hash", hash).maybeSingle();
+  const existing = await supabase.from("ownership_verifications").select("claim_id,expires_at,used_at").eq("token_hash", hash).maybeSingle();
   if (existing.error || !existing.data) return confirmationRedirect(request, { error: "INVALID_VERIFICATION" });
-  if (existing.data.used_at || new Date(existing.data.expires_at) < new Date()) return confirmationRedirect(request, { error: "EXPIRED_VERIFICATION" });
+  if (existing.data.used_at) {
+    const claim = await supabase.from("claims").select("status").eq("id", existing.data.claim_id).maybeSingle();
+    return confirmationRedirect(request, { error: claim.data?.status === "confirmed" ? "ALREADY_CONFIRMED" : "EXPIRED_VERIFICATION" });
+  }
+  if (new Date(existing.data.expires_at) < new Date()) return confirmationRedirect(request, { error: "EXPIRED_VERIFICATION" });
 
   const confirmed = await supabase.rpc("confirm_ownership", { p_token_hash: hash });
   if (confirmed.error || !confirmed.data?.[0]) {
