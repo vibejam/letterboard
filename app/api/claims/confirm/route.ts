@@ -5,23 +5,37 @@ import { rateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
+function confirmationRedirect(request: Request, values: Record<string, string>) {
+  const url = new URL("/confirmation", request.url);
+  for (const [key, value] of Object.entries(values)) url.searchParams.set(key, value);
+  return NextResponse.redirect(url, { status: 303 });
+}
+
 export async function GET(request: Request) {
-  if (!rateLimit(`confirm:${request.headers.get("x-forwarded-for") ?? "unknown"}`, 12)) return NextResponse.json({ error: "RATE_LIMITED" }, { status: 429 });
+  if (!rateLimit(`confirm:${request.headers.get("x-forwarded-for") ?? "unknown"}`, 12)) return confirmationRedirect(request, { error: "RATE_LIMITED" });
   const supabase = getSupabaseAdmin();
   const token = new URL(request.url).searchParams.get("token");
-  if (!supabase || !token || token.length > 256) return NextResponse.json({ error: "INVALID_VERIFICATION" }, { status: 400 });
+  if (!supabase || !token || token.length > 256) return confirmationRedirect(request, { error: "INVALID_VERIFICATION" });
 
   const hash = createHash("sha256").update(token).digest("hex");
   const existing = await supabase.from("ownership_verifications").select("expires_at,used_at").eq("token_hash", hash).maybeSingle();
-  if (existing.error || !existing.data) return NextResponse.json({ error: "INVALID_VERIFICATION" }, { status: 400 });
-  if (existing.data.used_at || new Date(existing.data.expires_at) < new Date()) return NextResponse.json({ error: "EXPIRED_VERIFICATION" }, { status: 410 });
+  if (existing.error || !existing.data) return confirmationRedirect(request, { error: "INVALID_VERIFICATION" });
+  if (existing.data.used_at || new Date(existing.data.expires_at) < new Date()) return confirmationRedirect(request, { error: "EXPIRED_VERIFICATION" });
 
   const confirmed = await supabase.rpc("confirm_ownership", { p_token_hash: hash });
   if (confirmed.error || !confirmed.data?.[0]) {
     const message = confirmed.error?.message ?? "CONFIRMATION_FAILED";
-    if (message.includes("FOUNDING_100_FULL")) return NextResponse.json({ error: "FOUNDING_100_FULL" }, { status: 409 });
-    if (message.includes("INVALID_VERIFICATION")) return NextResponse.json({ error: "EXPIRED_VERIFICATION" }, { status: 410 });
-    return NextResponse.json({ error: "CONFIRMATION_FAILED" }, { status: 409 });
+    if (message.includes("FOUNDING_100_FULL")) return confirmationRedirect(request, { error: "FOUNDING_100_FULL" });
+    if (message.includes("INVALID_VERIFICATION")) return confirmationRedirect(request, { error: "EXPIRED_VERIFICATION" });
+    return confirmationRedirect(request, { error: "CONFIRMATION_FAILED" });
   }
-  return NextResponse.json({ confirmed: true, foundingPosition: confirmed.data[0].founding_position, foundingTier: confirmed.data[0].founding_tier, profileSlug: confirmed.data[0].profile_slug });
+  const result = confirmed.data[0];
+  const profile = await supabase.from("newsletters").select("title").eq("slug", result.profile_slug).maybeSingle();
+  return confirmationRedirect(request, {
+    status: "confirmed",
+    position: String(result.founding_position),
+    tier: String(result.founding_tier).toLowerCase(),
+    slug: result.profile_slug,
+    ...(profile.data?.title ? { title: profile.data.title } : {}),
+  });
 }

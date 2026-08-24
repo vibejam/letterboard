@@ -9,6 +9,11 @@ const resendRoute = await readFile(new URL("../app/api/claims/resend/route.ts", 
 const ownership = await readFile(new URL("../lib/ownership.ts", import.meta.url), "utf8");
 const claimFlow = await readFile(new URL("../app/components/ClaimFlow.tsx", import.meta.url), "utf8");
 const repairRoute = await readFile(new URL("../app/api/admin/claims/repair/route.ts", import.meta.url), "utf8");
+const boardRoute = await readFile(new URL("../app/api/board/route.ts", import.meta.url), "utf8");
+const profileRoute = await readFile(new URL("../app/api/profiles/[slug]/route.ts", import.meta.url), "utf8");
+const homePage = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+const confirmationPage = await readFile(new URL("../app/confirmation/page.tsx", import.meta.url), "utf8");
+const publicProfilePage = await readFile(new URL("../app/[slug]/page.tsx", import.meta.url), "utf8");
 const migration = await readFile(new URL("../supabase/migrations/20260823120000_ownership_confirmation_transaction.sql", import.meta.url), "utf8");
 
 test("creator email is required, validated, and masked", () => {
@@ -123,6 +128,35 @@ test("admin repair keeps confirmed and rejected claims out of the resend path", 
   assert.match(repairRoute, /CLAIM_NOT_RESENDABLE/);
   assert.match(repairRoute, /status !== "pending"/);
   assert.match(repairRoute, /ownership_status !== "pending"/);
+});
+
+test("confirmation redirects to branded UI and removes the token from the visible URL", () => {
+  assert.match(confirmRoute, /confirmationRedirect/);
+  assert.match(confirmRoute, /status: "confirmed"/);
+  assert.match(confirmRoute, /NextResponse\.redirect/);
+  assert.doesNotMatch(confirmRoute, /NextResponse\.json/);
+  assert.match(confirmationPage, /Your Founding 100 place is confirmed\./);
+  assert.match(confirmationPage, /View your public profile/);
+  assert.match(confirmationPage, /Return to the board/);
+  assert.match(confirmationPage, /This confirmation link is no longer valid/);
+  assert.doesNotMatch(confirmationPage, /searchParams\.get\("token"\)|internal_points|contact_email/);
+});
+
+test("confirmed profiles flow from the transaction into the live board and public page", () => {
+  assert.match(migration, /insert into public\.public_profiles[\s\S]*is_published\)[\s\S]*true/);
+  assert.match(boardRoute, /force-dynamic/);
+  assert.match(boardRoute, /ownership_status.*confirmed/);
+  assert.match(boardRoute, /Cache-Control.*no-store/);
+  assert.match(profileRoute, /force-dynamic/);
+  assert.match(profileRoute, /ownership_status.*confirmed/);
+  assert.match(homePage, /fetch\("\/api\/board"/);
+  assert.match(homePage, /mapBoardRow/);
+  assert.match(publicProfilePage, /ownership_status.*confirmed/);
+  assert.match(publicProfilePage, /public_profiles/);
+  assert.match(publicProfilePage, /Boardmark status="confirmed"/);
+  assert.doesNotMatch(boardRoute, /internal_points|contact_email/);
+  assert.doesNotMatch(profileRoute, /internal_points|contact_email/);
+  assert.doesNotMatch(publicProfilePage, /internal_points|contact_email/);
 });
 
 test("legacy pending claims backfill a missing email without creating a claim", () => {

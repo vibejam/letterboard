@@ -68,5 +68,5 @@ test("pending profiles and duplicate confirmations remain protected", () => {
 test("confirmation assigns the tier exactly once in the transaction", () => {
   assert.match(migration, /returns table \(confirmed boolean, founding_position integer, founding_tier text, profile_slug text\)/);
   assert.equal((migration.match(/create or replace function public\.confirm_ownership/g) ?? []).length, 1);
-  assert.match(confirmRoute, /foundingTier: confirmed\.data\[0\]\.founding_tier/);
+  assert.match(confirmRoute, /tier: String\(result\.founding_tier\)\.toLowerCase\(\)/);
 });

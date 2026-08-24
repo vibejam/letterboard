@@ -17,6 +17,11 @@ export type Newsletter = {
   foundingTier?: BoardmarkTier;
 };
 
+export type BoardActivity = { name: string; detail: string; time: string; tone: Newsletter["tone"] };
+export type BoardViewData = { stats: { claimed: number; total: number }; leaderboard: Newsletter[]; activity: BoardActivity[] };
+export type BoardApiRow = { id: string; slug: string; title: string; description?: string | null; canonical_url: string; source_platform?: string | null; founding_position: number | null; founding_tier?: string | null; profile_views?: number | null; ownership_status: string };
+export type BoardApiActivity = { id: number; event_type: string; created_at: string; newsletters?: { title?: string; slug?: string } | { title?: string; slug?: string }[] | null };
+
 const devFixturesEnabled = process.env.NEXT_PUBLIC_ENABLE_DEV_FIXTURES === "true";
 export const boardStats = devFixturesEnabled ? { online: 126, visitors: 8420, claimed: 37, total: 100 } : { online: 0, visitors: 0, claimed: 0, total: 100 };
 
@@ -42,6 +47,38 @@ const fixtureActivity = [
 
 export const leaderboard: Newsletter[] = devFixturesEnabled ? fixtureLeaderboard : [];
 export const activity = devFixturesEnabled ? fixtureActivity : [];
+
+const liveTones: Newsletter["tone"][] = ["ink", "paper", "blue", "lime", "coral", "violet"];
+const liveTiers = new Set<BoardmarkTier>(["og", "legend", "icon", "pioneer"]);
+
+function boardmarkTier(value: string | null | undefined): BoardmarkTier | undefined {
+  return value && liveTiers.has(value as BoardmarkTier) ? value as BoardmarkTier : undefined;
+}
+
+export function mapBoardRow(row: BoardApiRow, index: number): Newsletter {
+  return {
+    id: row.id,
+    name: row.title,
+    url: row.canonical_url,
+    description: row.description ?? "A public newsletter on Letterboard.",
+    category: row.source_platform ?? "Newsletter",
+    bid: 0,
+    clicks: Number(row.profile_views ?? 0),
+    lastSeen: "live",
+    initials: row.title.slice(0, 1).toUpperCase(),
+    tone: liveTones[index % liveTones.length],
+    status: row.ownership_status === "confirmed" ? "confirmed" : "pending",
+    foundingTier: boardmarkTier(row.founding_tier),
+  };
+}
+
+export function mapBoardActivity(event: BoardApiActivity, index: number): BoardActivity {
+  const newsletter = Array.isArray(event.newsletters) ? event.newsletters[0] : event.newsletters;
+  const name = newsletter?.title ?? "Letterboard";
+  return { name, detail: event.event_type, time: new Date(event.created_at).toLocaleString(), tone: liveTones[index % liveTones.length] };
+}
+
+export const defaultBoardViewData: BoardViewData = { stats: boardStats, leaderboard, activity };
 
 export function formatNumber(value: number) {
   return new Intl.NumberFormat("en-US").format(value);
