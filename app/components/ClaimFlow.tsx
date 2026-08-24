@@ -31,6 +31,7 @@ function readableError(code?: string) {
   if (code === "EMAIL_NOT_CONFIGURED") return "Confirmation email is temporarily unavailable. Your profile was not created; please try again later.";
   if (code === "APP_URL_NOT_CONFIGURED") return "Confirmation links are temporarily unavailable. Please try again later.";
   if (code === "EMAIL_SEND_FAILED") return "No email was sent. Your profile remains pending; try sending the confirmation again.";
+  if (code?.startsWith("RESEND_")) return `Resend rejected the confirmation email (${code}). Your profile remains pending; try sending again.`;
   if (code === "DUPLICATE_NEWSLETTER") return "This newsletter already has a claim on Letterboard.";
   return code ?? "We could not complete the claim. Please try again.";
 }

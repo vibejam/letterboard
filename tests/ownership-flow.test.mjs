@@ -56,9 +56,9 @@ test("Resend failure is not reported as sent", async () => {
   process.env.RESEND_API_KEY = "test-resend-key";
   process.env.OWNERSHIP_EMAIL_FROM = "Seth <seth@letterboard.lol>";
   process.env.NEXT_PUBLIC_APP_URL = "https://www.letterboard.lol";
-  globalThis.fetch = async () => new Response(JSON.stringify({ error: "rejected" }), { status: 422 });
+  globalThis.fetch = async () => new Response(JSON.stringify({ name: "validation_error", message: "from is not a valid email" }), { status: 422 });
   const result = await sendOwnershipEmail({ requestId: "request-test", claimId: "claim-test", recipient: "creator@example.com", newsletterTitle: "A Newsletter", rawToken: "opaque-token" });
-  assert.deepEqual(result, { ok: false, reason: "EMAIL_SEND_FAILED" });
+  assert.deepEqual(result, { ok: false, reason: "EMAIL_SEND_FAILED", errorCode: "VALIDATION_ERROR", errorMessage: "from is not a valid email" });
   globalThis.fetch = previousFetch;
   if (previous.key === undefined) delete process.env.RESEND_API_KEY; else process.env.RESEND_API_KEY = previous.key;
   if (previous.from === undefined) delete process.env.OWNERSHIP_EMAIL_FROM; else process.env.OWNERSHIP_EMAIL_FROM = previous.from;
@@ -70,7 +70,9 @@ test("routes enforce explicit email, resend rate limiting, and transactional con
   assert.match(claimsRoute, /INVALID_EMAIL/);
   assert.match(claimsRoute, /creatorEmail/);
   assert.match(claimsRoute, /emailStatus: email\.ok \? "sent"/);
+  assert.match(claimsRoute, /email\.errorCode \?\? email\.reason/);
   assert.match(resendRoute, /resend-confirmation/);
+  assert.match(resendRoute, /email\.errorCode \?\? email\.reason/);
   assert.match(resendRoute, /contact_email/);
   assert.match(confirmRoute, /confirm_ownership/);
   assert.match(migration, /pg_advisory_xact_lock/);

@@ -41,7 +41,7 @@ export async function POST(request: Request) {
 
     const email = await sendOwnershipEmail({ requestId, claimId: claim.data.id, recipient: creatorEmail, newsletterTitle: n.title, rawToken });
     const claimResponse = { id: claim.data.id, status: "pending" as const, profileSlug: inserted.data.slug, emailStatus: email.ok ? "sent" as const : "failed" as const, maskedRecipient: maskEmail(creatorEmail) };
-    if (!email.ok) return NextResponse.json({ error: email.reason, claim: claimResponse }, { status: 502 });
+    if (!email.ok) return NextResponse.json({ error: email.errorCode ?? email.reason, claim: claimResponse }, { status: 502 });
     return NextResponse.json({ claim: claimResponse });
   } catch (error) {
     if (typeof error === "object" && error !== null && "code" in error && error.code === "23505") return NextResponse.json({ error: "DUPLICATE_NEWSLETTER" }, { status: 409 });

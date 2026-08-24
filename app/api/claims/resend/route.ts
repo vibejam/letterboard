@@ -28,6 +28,6 @@ export async function POST(request: Request) {
   if (verification.error) return NextResponse.json({ error: "RESEND_FAILED" }, { status: 502 });
 
   const email = await sendOwnershipEmail({ requestId: randomUUID(), claimId, recipient: creatorEmail, newsletterTitle: newsletter.title, rawToken });
-  if (!email.ok) return NextResponse.json({ error: email.reason, claim: { id: claimId, status: "pending", emailStatus: "failed", maskedRecipient: maskEmail(creatorEmail) } }, { status: 502 });
+  if (!email.ok) return NextResponse.json({ error: email.errorCode ?? email.reason, claim: { id: claimId, status: "pending", emailStatus: "failed", maskedRecipient: maskEmail(creatorEmail) } }, { status: 502 });
   return NextResponse.json({ claim: { id: claimId, status: "pending", emailStatus: "sent", maskedRecipient: maskEmail(creatorEmail) } });
 }
