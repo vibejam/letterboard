@@ -71,6 +71,8 @@ test("routes enforce explicit email, resend rate limiting, and transactional con
   assert.match(claimsRoute, /creatorEmail/);
   assert.match(claimsRoute, /emailStatus: email\.ok \? "sent"/);
   assert.match(claimsRoute, /email\.errorCode \?\? email\.reason/);
+  assert.match(claimsRoute, /\.eq\("status", "pending"\)/);
+  assert.match(claimsRoute, /claim: \{/);
   assert.match(resendRoute, /resend-confirmation/);
   assert.match(resendRoute, /email\.errorCode \?\? email\.reason/);
   assert.match(resendRoute, /contact_email/);

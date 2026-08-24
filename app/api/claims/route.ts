@@ -29,7 +29,24 @@ export async function POST(request: Request) {
   try {
     const existing = await supabase.from("newsletters").select("id,slug,founding_position,ownership_status").eq("normalized_url", n.normalizedUrl).maybeSingle();
     if (existing.error) throw existing.error;
-    if (existing.data) return NextResponse.json({ error: "DUPLICATE_NEWSLETTER", newsletter: existing.data }, { status: 409 });
+    if (existing.data) {
+      const pendingClaims = await supabase.from("claims").select("id,contact_email").eq("newsletter_id", existing.data.id).eq("status", "pending").limit(2);
+      if (pendingClaims.error) throw pendingClaims.error;
+      const pendingClaim = pendingClaims.data?.length === 1 ? pendingClaims.data[0] : null;
+      return NextResponse.json({
+        error: "DUPLICATE_NEWSLETTER",
+        newsletter: existing.data,
+        ...(pendingClaim ? {
+          claim: {
+            id: pendingClaim.id,
+            status: "pending" as const,
+            profileSlug: existing.data.slug,
+            emailStatus: "failed" as const,
+            maskedRecipient: typeof pendingClaim.contact_email === "string" ? maskEmail(pendingClaim.contact_email) : undefined,
+          },
+        } : {}),
+      }, { status: 409 });
+    }
 
     const inserted = await supabase.from("newsletters").insert({ canonical_url: n.canonicalUrl, normalized_url: n.normalizedUrl, slug: safeSlug(n.title, n.normalizedUrl), title: n.title, description: n.description, logo_url: n.logoUrl, source_platform: n.sourcePlatform, metadata_status: "ready", claimed_at: new Date().toISOString() }).select("id,slug,title,description,canonical_url,ownership_status").single();
     if (inserted.error) throw inserted.error;
