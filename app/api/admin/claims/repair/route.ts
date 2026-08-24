@@ -53,11 +53,20 @@ export async function POST(request: Request) {
     await auditRepair(supabase, requestId, claimId, { ...baseAudit, outcome: "claim_not_resendable" });
     return NextResponse.json({ error: "CLAIM_NOT_RESENDABLE" }, { status: 409 });
   }
-  if (!claim.contact_email) {
-    await auditRepair(supabase, requestId, claimId, { ...baseAudit, outcome: "claim_email_missing" });
-    return NextResponse.json({ error: "CLAIM_EMAIL_MISSING" }, { status: 409 });
+  let storedContactEmail = claim.contact_email;
+  if (!storedContactEmail) {
+    const backfilled = await supabase.from("claims").update({ contact_email: creatorEmail }).eq("id", claimId).eq("status", "pending").is("contact_email", null).select("id,contact_email").maybeSingle();
+    if (backfilled.error) {
+      await auditRepair(supabase, requestId, claimId, { ...baseAudit, outcome: "claim_email_backfill_failed" });
+      return NextResponse.json({ error: "CLAIM_REPAIR_FAILED" }, { status: 502 });
+    }
+    if (!backfilled.data?.contact_email) {
+      await auditRepair(supabase, requestId, claimId, { ...baseAudit, outcome: "claim_email_backfill_conflict" });
+      return NextResponse.json({ error: "CLAIM_EMAIL_MISMATCH" }, { status: 409 });
+    }
+    storedContactEmail = backfilled.data.contact_email;
   }
-  if (normalizeCreatorEmail(claim.contact_email) !== creatorEmail) {
+  if (normalizeCreatorEmail(storedContactEmail) !== creatorEmail) {
     await auditRepair(supabase, requestId, claimId, { ...baseAudit, outcome: "claim_email_mismatch" });
     return NextResponse.json({ error: "CLAIM_EMAIL_MISMATCH" }, { status: 403 });
   }

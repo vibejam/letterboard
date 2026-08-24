@@ -106,7 +106,7 @@ test("admin repair is restricted, non-duplicating, and preserves founding author
   assert.match(repairRoute, /newsletter\.ownership_status !== "pending"/);
   assert.match(repairRoute, /newsletter\.boardmark_status !== "pending"/);
   assert.match(repairRoute, /contact_email/);
-  assert.match(repairRoute, /CLAIM_EMAIL_MISSING/);
+  assert.doesNotMatch(repairRoute, /CLAIM_EMAIL_MISSING/);
   assert.match(repairRoute, /CLAIM_EMAIL_MISMATCH/);
   assert.match(repairRoute, /used_at: new Date\(\)\.toISOString\(\)/);
   assert.match(repairRoute, /token_hash: tokenHash/);
@@ -123,4 +123,23 @@ test("admin repair keeps confirmed and rejected claims out of the resend path", 
   assert.match(repairRoute, /CLAIM_NOT_RESENDABLE/);
   assert.match(repairRoute, /status !== "pending"/);
   assert.match(repairRoute, /ownership_status !== "pending"/);
+});
+
+test("legacy pending claims backfill a missing email without creating a claim", () => {
+  assert.match(repairRoute, /let storedContactEmail = claim\.contact_email/);
+  assert.match(repairRoute, /update\(\{ contact_email: creatorEmail \}\)/);
+  assert.match(repairRoute, /\.eq\("status", "pending"\)\.is\("contact_email", null\)/);
+  assert.match(repairRoute, /storedContactEmail = backfilled\.data\.contact_email/);
+  assert.match(repairRoute, /sendOwnershipEmail/);
+  assert.doesNotMatch(repairRoute, /from\("claims"\)\.insert/);
+});
+
+test("legacy repair protects existing emails, reports provider failure, and does not leak tokens", () => {
+  assert.match(repairRoute, /claim_email_backfill_failed/);
+  assert.match(repairRoute, /claim_email_backfill_conflict/);
+  assert.match(repairRoute, /normalizeCreatorEmail\(storedContactEmail\) !== creatorEmail/);
+  assert.match(repairRoute, /email\.reason/);
+  assert.match(repairRoute, /providerCalled: true/);
+  assert.doesNotMatch(repairRoute, /console\.(info|warn|error)\([^\n]*rawToken/);
+  assert.doesNotMatch(repairRoute, /console\.(info|warn|error)\([^\n]*(creatorEmail|contact_email)/);
 });
