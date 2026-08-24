@@ -139,9 +139,11 @@ test("confirmation redirects to branded UI and removes the token from the visibl
   assert.match(confirmRoute, /status: "confirmed"/);
   assert.match(confirmRoute, /NextResponse\.redirect/);
   assert.doesNotMatch(confirmRoute, /NextResponse\.json/);
-  assert.match(confirmationPage, /Your Founding Mark is active\./);
+  assert.match(confirmationPage, /Your Founding Mark is live\./);
+  assert.match(confirmationPage, /You are confirmed as \{confirmationSummary\} on Letterboard\./);
   assert.match(confirmationPage, /FOUNDING STATUS CONFIRMED/);
   assert.match(confirmationPage, /View my public profile/);
+  assert.match(confirmationPage, /ShareProfileButton/);
   assert.match(confirmationPage, /Return to the board/);
   assert.match(confirmationPage, /This confirmation link is no longer valid/);
   assert.match(confirmationPage, /ALREADY_CONFIRMED/);
@@ -152,20 +154,41 @@ test("confirmation redirects to branded UI and removes the token from the visibl
 
 test("homepage presents Founding Mark onboarding copy and truthful empty states", () => {
   assert.match(homeClient, /Be one of the first 100 newsletters on Letterboard\./);
-  assert.match(homeClient, /Claim a free public profile, secure your founding place, and carry your Founding Mark/);
-  assert.match(homeClient, /Free to claim\. No card\. No pay-to-enter\./);
+  assert.match(homeClient, /Claim your permanent founding position, build your public profile, and be there before the leaderboard opens to the world\./);
+  assert.match(homeClient, /Free forever to claim\. No card\. No catch\./);
   assert.match(homeClient, /Paste your newsletter URL/);
-  assert.match(homeClient, /Claim my place/);
-  assert.match(homeClient, /OG 01–05 · LEGEND 06–10 · ICON 11–50 · PIONEER 51–100/);
-  assert.match(homeClient, /Founding places claimed/);
-  assert.match(homeClient, /Spotlight opens after the Founding 100 closes/);
+  assert.match(homeClient, /Claim my spot/);
+  assert.match(homeClient, /#1–5 OG · #6–10 Legend · #11–50 Icon · #51–100 Pioneer/);
+  assert.match(homeClient, /Founding spots claimed/);
+  assert.match(homeClient, /After the Founding 100 closes, Spotlight opens for featured visibility without changing organic founding status\./);
+  assert.match(homeClient, /board\.stats\.claimed === 1 \? "place" : "places"/);
+  assert.match(homeClient, /board\.stats\.total - board\.stats\.claimed/);
   assert.doesNotMatch(homeClient, /visitors|online now|fake activity/i);
   assert.match(leaderboard, /Who gets there first\?/);
-  assert.match(leaderboard, /Letterboard starts here\./);
-  assert.match(leaderboard, /The first verified newsletter takes #01 — and becomes the first OG\./);
-  assert.match(leaderboard, /Nothing moving yet\. You could start the first signal\./);
-  assert.match(leaderboard, /No activity yet\. The board is waiting on its first confirmation\./);
+  assert.match(leaderboard, /Letterboard starts empty\. The first verified newsletter takes #01\./);
+  assert.match(leaderboard, /Nothing yet\. You could start it\./);
+  assert.match(leaderboard, /The live board\./);
+  assert.doesNotMatch(leaderboard, /First on Letterboard|places claimed|Hero/);
   assert.match(boardmark, /Founding Mark/);
+});
+
+test("public copy has no stale Boardmark or Hero terminology", async () => {
+  const files = [
+    homeClient,
+    leaderboard,
+    claimFlow,
+    confirmationPage,
+    publicProfilePage,
+    await readFile(new URL("../app/components/ShareCard.tsx", import.meta.url), "utf8"),
+  ];
+  for (const source of files) {
+    assert.doesNotMatch(source, />[^<]*(Founding Boardmark|First on Letterboard|\bHero\b|\bBoardmark\b)[^<]*</i);
+    assert.doesNotMatch(source, /aria-label="[^"]*(Founding Boardmark|\bHero\b|\bBoardmark\b)/i);
+  }
+  for (const tier of ["og", "legend", "icon", "pioneer"]) {
+    const mark = await readFile(new URL(`../public/brand/boardmarks/boardmark-${tier}.svg`, import.meta.url), "utf8");
+    assert.doesNotMatch(mark, /<(?:title|desc)>[^<]*(Founding Boardmark|\bHero\b|\bBoardmark\b)/i);
+  }
 });
 
 test("confirmed profiles flow from the transaction into the live board and public page", () => {
