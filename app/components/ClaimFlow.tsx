@@ -108,7 +108,11 @@ export function ClaimFlow({ open, onClose, initialNewsletter }: ClaimFlowProps) 
   }
 
   async function resendConfirmation() {
-    if (!claimId) return createClaim();
+    if (!claimId) {
+      setEmailStatus("failed");
+      setError(readableError("CLAIM_NOT_RESENDABLE"));
+      return;
+    }
     if (!validEmail(creatorEmail)) { setError(readableError("INVALID_EMAIL")); return; }
     setError(undefined);
     setEmailStatus("sending");

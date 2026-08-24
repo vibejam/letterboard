@@ -7,6 +7,7 @@ const claimsRoute = await readFile(new URL("../app/api/claims/route.ts", import.
 const confirmRoute = await readFile(new URL("../app/api/claims/confirm/route.ts", import.meta.url), "utf8");
 const resendRoute = await readFile(new URL("../app/api/claims/resend/route.ts", import.meta.url), "utf8");
 const ownership = await readFile(new URL("../lib/ownership.ts", import.meta.url), "utf8");
+const claimFlow = await readFile(new URL("../app/components/ClaimFlow.tsx", import.meta.url), "utf8");
 const migration = await readFile(new URL("../supabase/migrations/20260823120000_ownership_confirmation_transaction.sql", import.meta.url), "utf8");
 
 test("creator email is required, validated, and masked", () => {
@@ -79,6 +80,8 @@ test("routes enforce explicit email, resend rate limiting, and transactional con
   assert.match(resendRoute, /CLAIM_NOT_RESENDABLE/);
   assert.match(resendRoute, /email\.reason/);
   assert.match(resendRoute, /contact_email/);
+  assert.match(claimFlow, /fetch\("\/api\/claims\/resend"/);
+  assert.doesNotMatch(claimFlow, /if \(!claimId\) return createClaim/);
   assert.match(confirmRoute, /confirm_ownership/);
   assert.match(migration, /pg_advisory_xact_lock/);
   assert.match(migration, /ownership_status = 'confirmed'/);
