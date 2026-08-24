@@ -31,7 +31,7 @@ function readableError(code?: string) {
   if (code === "RESEND_CONFIG_MISSING") return "Confirmation email is not configured in production. Your profile remains pending; please contact Letterboard support.";
   if (code === "APP_URL_NOT_CONFIGURED") return "Confirmation links are temporarily unavailable. Please try again later.";
   if (code === "RESEND_REQUEST_REJECTED") return "Resend rejected the confirmation email. Your profile remains pending; try sending again.";
-  if (code === "CLAIM_NOT_RESENDABLE") return "This pending claim can no longer be resent. Please contact Letterboard support.";
+  if (code === "CLAIM_NOT_RESENDABLE") return "Your pending claim needs a new confirmation link. Contact support.";
   if (code === "DUPLICATE_NEWSLETTER") return "This newsletter already has a claim on Letterboard.";
   return code ?? "We could not complete the claim. Please try again.";
 }

@@ -8,6 +8,7 @@ const confirmRoute = await readFile(new URL("../app/api/claims/confirm/route.ts"
 const resendRoute = await readFile(new URL("../app/api/claims/resend/route.ts", import.meta.url), "utf8");
 const ownership = await readFile(new URL("../lib/ownership.ts", import.meta.url), "utf8");
 const claimFlow = await readFile(new URL("../app/components/ClaimFlow.tsx", import.meta.url), "utf8");
+const repairRoute = await readFile(new URL("../app/api/admin/claims/repair/route.ts", import.meta.url), "utf8");
 const migration = await readFile(new URL("../supabase/migrations/20260823120000_ownership_confirmation_transaction.sql", import.meta.url), "utf8");
 
 test("creator email is required, validated, and masked", () => {
@@ -94,4 +95,32 @@ test("resend uses the server-side Resend SDK and safe provider diagnostics", () 
   assert.match(ownership, /providerCalled/);
   assert.match(ownership, /senderDomain/);
   assert.doesNotMatch(ownership, /api\.resend\.com\/emails/);
+});
+
+test("admin repair is restricted, non-duplicating, and preserves founding authority", () => {
+  assert.match(repairRoute, /ADMIN_REVIEW_TOKEN/);
+  assert.match(repairRoute, /authorization/);
+  assert.match(repairRoute, /claimId/);
+  assert.match(repairRoute, /creatorEmail/);
+  assert.match(repairRoute, /claim\.status !== "pending"/);
+  assert.match(repairRoute, /newsletter\.ownership_status !== "pending"/);
+  assert.match(repairRoute, /newsletter\.boardmark_status !== "pending"/);
+  assert.match(repairRoute, /contact_email/);
+  assert.match(repairRoute, /CLAIM_EMAIL_MISSING/);
+  assert.match(repairRoute, /CLAIM_EMAIL_MISMATCH/);
+  assert.match(repairRoute, /used_at: new Date\(\)\.toISOString\(\)/);
+  assert.match(repairRoute, /token_hash: tokenHash/);
+  assert.match(repairRoute, /expires_at: new Date/);
+  assert.match(repairRoute, /sendOwnershipEmail/);
+  assert.match(repairRoute, /messageId: email\.messageId/);
+  assert.match(repairRoute, /admin_audit_log/);
+  assert.match(repairRoute, /senderDomain/);
+  assert.doesNotMatch(repairRoute, /from\("claims"\)\.insert/);
+  assert.doesNotMatch(repairRoute, /internal_points/);
+});
+
+test("admin repair keeps confirmed and rejected claims out of the resend path", () => {
+  assert.match(repairRoute, /CLAIM_NOT_RESENDABLE/);
+  assert.match(repairRoute, /status !== "pending"/);
+  assert.match(repairRoute, /ownership_status !== "pending"/);
 });
