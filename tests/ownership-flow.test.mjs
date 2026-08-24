@@ -10,8 +10,10 @@ const ownership = await readFile(new URL("../lib/ownership.ts", import.meta.url)
 const claimFlow = await readFile(new URL("../app/components/ClaimFlow.tsx", import.meta.url), "utf8");
 const repairRoute = await readFile(new URL("../app/api/admin/claims/repair/route.ts", import.meta.url), "utf8");
 const boardRoute = await readFile(new URL("../app/api/board/route.ts", import.meta.url), "utf8");
+const boardLib = await readFile(new URL("../lib/board.ts", import.meta.url), "utf8");
 const profileRoute = await readFile(new URL("../app/api/profiles/[slug]/route.ts", import.meta.url), "utf8");
 const homePage = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+const homeClient = await readFile(new URL("../app/components/HomeClient.tsx", import.meta.url), "utf8");
 const leaderboard = await readFile(new URL("../app/components/Leaderboard.tsx", import.meta.url), "utf8");
 const boardmark = await readFile(new URL("../app/components/Boardmark.tsx", import.meta.url), "utf8");
 const confirmationPage = await readFile(new URL("../app/confirmation/page.tsx", import.meta.url), "utf8");
@@ -149,15 +151,15 @@ test("confirmation redirects to branded UI and removes the token from the visibl
 });
 
 test("homepage presents Founding Mark onboarding copy and truthful empty states", () => {
-  assert.match(homePage, /Be one of the first 100 newsletters on Letterboard\./);
-  assert.match(homePage, /Claim a free public profile, secure your founding place, and carry your Founding Mark/);
-  assert.match(homePage, /Free to claim\. No card\. No pay-to-enter\./);
-  assert.match(homePage, /Paste your newsletter URL/);
-  assert.match(homePage, /Claim my place/);
-  assert.match(homePage, /OG 01–05 · LEGEND 06–10 · ICON 11–50 · PIONEER 51–100/);
-  assert.match(homePage, /Founding places claimed/);
-  assert.match(homePage, /Spotlight opens after the Founding 100 closes/);
-  assert.doesNotMatch(homePage, /visitors|online now|fake activity/i);
+  assert.match(homeClient, /Be one of the first 100 newsletters on Letterboard\./);
+  assert.match(homeClient, /Claim a free public profile, secure your founding place, and carry your Founding Mark/);
+  assert.match(homeClient, /Free to claim\. No card\. No pay-to-enter\./);
+  assert.match(homeClient, /Paste your newsletter URL/);
+  assert.match(homeClient, /Claim my place/);
+  assert.match(homeClient, /OG 01–05 · LEGEND 06–10 · ICON 11–50 · PIONEER 51–100/);
+  assert.match(homeClient, /Founding places claimed/);
+  assert.match(homeClient, /Spotlight opens after the Founding 100 closes/);
+  assert.doesNotMatch(homeClient, /visitors|online now|fake activity/i);
   assert.match(leaderboard, /Who gets there first\?/);
   assert.match(leaderboard, /Letterboard starts here\./);
   assert.match(leaderboard, /The first verified newsletter takes #01 — and becomes the first OG\./);
@@ -169,16 +171,18 @@ test("homepage presents Founding Mark onboarding copy and truthful empty states"
 test("confirmed profiles flow from the transaction into the live board and public page", () => {
   assert.match(migration, /insert into public\.public_profiles[\s\S]*is_published\)[\s\S]*true/);
   assert.match(boardRoute, /force-dynamic/);
-  assert.match(boardRoute, /ownership_status.*confirmed/);
+  assert.match(boardLib, /ownership_status.*confirmed/);
   assert.match(boardRoute, /Cache-Control.*no-store/);
   assert.match(profileRoute, /force-dynamic/);
   assert.match(profileRoute, /ownership_status.*confirmed/);
-  assert.match(homePage, /fetch\("\/api\/board"/);
-  assert.match(homePage, /mapBoardRow/);
+  assert.match(homePage, /force-dynamic/);
+  assert.match(homePage, /getBoardPayload/);
+  assert.match(homeClient, /fetch\("\/api\/board"/);
+  assert.match(homeClient, /mapBoardRow/);
   assert.match(publicProfilePage, /ownership_status.*confirmed/);
   assert.match(publicProfilePage, /public_profiles/);
   assert.match(publicProfilePage, /Boardmark status="confirmed"/);
-  assert.doesNotMatch(boardRoute, /internal_points|contact_email/);
+  assert.doesNotMatch(boardLib, /internal_points|contact_email/);
   assert.doesNotMatch(profileRoute, /internal_points|contact_email/);
   assert.doesNotMatch(publicProfilePage, /internal_points|contact_email/);
 });

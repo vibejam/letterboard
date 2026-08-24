@@ -6,7 +6,7 @@ const migration = await readFile(new URL("../supabase/migrations/20260824040407_
 const baseMigration = await readFile(new URL("../supabase/migrations/20260822190743_founding100_schema.sql", import.meta.url), "utf8");
 const claimsRoute = await readFile(new URL("../app/api/claims/route.ts", import.meta.url), "utf8");
 const confirmRoute = await readFile(new URL("../app/api/claims/confirm/route.ts", import.meta.url), "utf8");
-const boardRoute = await readFile(new URL("../app/api/board/route.ts", import.meta.url), "utf8");
+const boardLib = await readFile(new URL("../lib/board.ts", import.meta.url), "utf8");
 const profileRoute = await readFile(new URL("../app/api/profiles/[slug]/route.ts", import.meta.url), "utf8");
 const adminRoute = await readFile(new URL("../app/api/admin/reviews/route.ts", import.meta.url), "utf8");
 
@@ -46,9 +46,9 @@ test("confirmed authority is immutable and cannot be transferred or edited", () 
 });
 
 test("public responses expose founding_tier but never internal_points", () => {
-  assert.match(boardRoute, /founding_tier/);
+  assert.match(boardLib, /founding_tier/);
   assert.match(profileRoute, /founding_tier/);
-  assert.doesNotMatch(boardRoute, /internal_points/);
+  assert.doesNotMatch(boardLib, /internal_points/);
   assert.doesNotMatch(profileRoute, /internal_points/);
   assert.match(migration, /revoke select on public\.newsletters from anon, authenticated/);
   assert.match(migration, /founding_position, founding_tier,/);
