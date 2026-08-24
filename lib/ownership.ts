@@ -1,8 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
+import { Resend } from "resend";
 
 export type OwnershipEmailResult =
   | { ok: true; messageId: string }
-  | { ok: false; reason: "EMAIL_NOT_CONFIGURED" | "APP_URL_NOT_CONFIGURED" | "EMAIL_SEND_FAILED"; errorCode?: string; errorMessage?: string };
+  | { ok: false; reason: "RESEND_CONFIG_MISSING" | "APP_URL_NOT_CONFIGURED" | "RESEND_REQUEST_REJECTED"; errorCode?: string; errorMessage?: string };
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -51,6 +52,7 @@ function logOwnershipEmail({
   recipient,
   from,
   outcome,
+  providerCalled,
   messageId,
   errorCode,
   errorMessage,
@@ -60,6 +62,7 @@ function logOwnershipEmail({
   recipient?: string;
   from?: string;
   outcome: string;
+  providerCalled: boolean;
   messageId?: string;
   errorCode?: string;
   errorMessage?: string;
@@ -69,6 +72,7 @@ function logOwnershipEmail({
     claimId,
     recipientDomain: domainOf(recipient),
     senderDomain: domainOf(from),
+    providerCalled,
     outcome,
     ...(messageId ? { messageId } : {}),
     ...(errorCode ? { errorCode } : {}),
@@ -93,11 +97,11 @@ export async function sendOwnershipEmail({
   const from = process.env.OWNERSHIP_EMAIL_FROM;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
   if (!apiKey || !from) {
-    logOwnershipEmail({ requestId, claimId, recipient, from, outcome: "not_configured", errorCode: "EMAIL_NOT_CONFIGURED" });
-    return { ok: false, reason: "EMAIL_NOT_CONFIGURED", errorCode: "EMAIL_NOT_CONFIGURED" };
+    logOwnershipEmail({ requestId, claimId, recipient, from, outcome: "config_missing", providerCalled: false, errorCode: "RESEND_CONFIG_MISSING" });
+    return { ok: false, reason: "RESEND_CONFIG_MISSING", errorCode: "RESEND_CONFIG_MISSING" };
   }
   if (!appUrl) {
-    logOwnershipEmail({ requestId, claimId, recipient, from, outcome: "not_configured", errorCode: "APP_URL_NOT_CONFIGURED" });
+    logOwnershipEmail({ requestId, claimId, recipient, from, outcome: "app_url_missing", providerCalled: false, errorCode: "APP_URL_NOT_CONFIGURED" });
     return { ok: false, reason: "APP_URL_NOT_CONFIGURED", errorCode: "APP_URL_NOT_CONFIGURED" };
   }
 
@@ -105,12 +109,12 @@ export async function sendOwnershipEmail({
   try {
     const origin = new URL(appUrl);
     if (origin.protocol !== "https:") {
-      logOwnershipEmail({ requestId, claimId, recipient, from, outcome: "not_configured", errorCode: "APP_URL_NOT_CONFIGURED" });
+      logOwnershipEmail({ requestId, claimId, recipient, from, outcome: "app_url_invalid", providerCalled: false, errorCode: "APP_URL_NOT_CONFIGURED" });
       return { ok: false, reason: "APP_URL_NOT_CONFIGURED", errorCode: "APP_URL_NOT_CONFIGURED" };
     }
     confirmationUrl = new URL(`/api/claims/confirm?token=${encodeURIComponent(rawToken)}`, origin).toString();
   } catch {
-    logOwnershipEmail({ requestId, claimId, recipient, from, outcome: "not_configured", errorCode: "APP_URL_NOT_CONFIGURED" });
+    logOwnershipEmail({ requestId, claimId, recipient, from, outcome: "app_url_invalid", providerCalled: false, errorCode: "APP_URL_NOT_CONFIGURED" });
     return { ok: false, reason: "APP_URL_NOT_CONFIGURED", errorCode: "APP_URL_NOT_CONFIGURED" };
   }
 
@@ -119,26 +123,26 @@ export async function sendOwnershipEmail({
   const html = `<p>You requested a free pending profile for <strong>${title}</strong> on Letterboard.</p><p>Confirm ownership to activate your Founding 100 status:</p><p><a href="${confirmationUrl}">Confirm ownership</a></p><p>If you did not request this, you can ignore this email.</p><p>This email is sent by Letterboard for ownership confirmation. It is not marketing.</p>`;
 
   try {
-    const response = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
-      body: JSON.stringify({ from, to: [recipient], subject: "Confirm your Letterboard profile", text, html }),
-      signal: AbortSignal.timeout(10000),
+    const resend = new Resend(apiKey);
+    const { data, error } = await resend.emails.send({
+      from,
+      to: [recipient],
+      subject: "Confirm your Letterboard profile",
+      text,
+      html,
     });
-    const payload = await response.json().catch(() => null) as { id?: unknown; name?: unknown; message?: unknown; error?: unknown } | null;
-    const messageId = typeof payload?.id === "string" ? payload.id : null;
-    if (response.ok && messageId) {
-      logOwnershipEmail({ requestId, claimId, recipient, from, outcome: "accepted", messageId });
+    const messageId = typeof data?.id === "string" ? data.id : null;
+    if (!error && messageId) {
+      logOwnershipEmail({ requestId, claimId, recipient, from, outcome: "accepted", providerCalled: true, messageId });
       return { ok: true, messageId };
     }
-    const providerError = typeof payload?.error === "object" && payload.error !== null ? payload.error as { name?: unknown; code?: unknown; message?: unknown } : null;
-    const errorCode = response.ok ? "RESEND_MISSING_MESSAGE_ID" : sanitizeErrorCode(providerError?.name ?? providerError?.code ?? payload?.name, `RESEND_HTTP_${response.status}`);
-    const errorMessage = sanitizeErrorMessage(providerError?.message ?? payload?.message ?? (typeof payload?.error === "string" ? payload.error : undefined));
-    logOwnershipEmail({ requestId, claimId, recipient, from, outcome: response.ok ? "missing_message_id" : "rejected", messageId: messageId ?? undefined, errorCode, errorMessage });
-    return { ok: false, reason: "EMAIL_SEND_FAILED", errorCode, ...(errorMessage ? { errorMessage } : {}) };
+    const errorCode = error ? sanitizeErrorCode(error.name, "RESEND_REQUEST_REJECTED") : "RESEND_MISSING_MESSAGE_ID";
+    const errorMessage = sanitizeErrorMessage(error?.message);
+    logOwnershipEmail({ requestId, claimId, recipient, from, outcome: error ? "rejected" : "missing_message_id", providerCalled: true, messageId: messageId ?? undefined, errorCode, errorMessage });
+    return { ok: false, reason: "RESEND_REQUEST_REJECTED", errorCode, ...(errorMessage ? { errorMessage } : {}) };
   } catch (error) {
     const errorMessage = sanitizeErrorMessage(error instanceof Error ? error.message : undefined);
-    logOwnershipEmail({ requestId, claimId, recipient, from, outcome: "request_failed", errorCode: "RESEND_NETWORK_ERROR", errorMessage });
-    return { ok: false, reason: "EMAIL_SEND_FAILED", errorCode: "RESEND_NETWORK_ERROR", ...(errorMessage ? { errorMessage } : {}) };
+    logOwnershipEmail({ requestId, claimId, recipient, from, outcome: "request_failed", providerCalled: true, errorCode: "RESEND_REQUEST_REJECTED", errorMessage });
+    return { ok: false, reason: "RESEND_REQUEST_REJECTED", errorCode: "RESEND_REQUEST_REJECTED", ...(errorMessage ? { errorMessage } : {}) };
   }
 }

@@ -28,10 +28,10 @@ function validEmail(value: string) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(va
 function readableError(code?: string) {
   if (code === "EMAIL_REQUIRED") return "Enter a private creator email to receive the ownership confirmation.";
   if (code === "INVALID_EMAIL") return "Enter a valid creator email address.";
-  if (code === "EMAIL_NOT_CONFIGURED") return "Confirmation email is temporarily unavailable. Your profile was not created; please try again later.";
+  if (code === "RESEND_CONFIG_MISSING") return "Confirmation email is not configured in production. Your profile remains pending; please contact Letterboard support.";
   if (code === "APP_URL_NOT_CONFIGURED") return "Confirmation links are temporarily unavailable. Please try again later.";
-  if (code === "EMAIL_SEND_FAILED") return "No email was sent. Your profile remains pending; try sending the confirmation again.";
-  if (code?.startsWith("RESEND_")) return `Resend rejected the confirmation email (${code}). Your profile remains pending; try sending again.`;
+  if (code === "RESEND_REQUEST_REJECTED") return "Resend rejected the confirmation email. Your profile remains pending; try sending again.";
+  if (code === "CLAIM_NOT_RESENDABLE") return "This pending claim can no longer be resent. Please contact Letterboard support.";
   if (code === "DUPLICATE_NEWSLETTER") return "This newsletter already has a claim on Letterboard.";
   return code ?? "We could not complete the claim. Please try again.";
 }

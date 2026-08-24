@@ -19,7 +19,7 @@ export async function POST(request: Request) {
   const creatorEmail = normalizeCreatorEmail(body?.creatorEmail);
   if (!body?.newsletter?.normalizedUrl || !body.newsletter.title) return NextResponse.json({ error: "INVALID_CLAIM" }, { status: 400 });
   if (!creatorEmail) return NextResponse.json({ error: typeof body.creatorEmail === "string" && body.creatorEmail.trim() ? "INVALID_EMAIL" : "EMAIL_REQUIRED" }, { status: 400 });
-  if (!process.env.RESEND_API_KEY || !process.env.OWNERSHIP_EMAIL_FROM) return NextResponse.json({ error: "EMAIL_NOT_CONFIGURED" }, { status: 503 });
+  if (!process.env.RESEND_API_KEY || !process.env.OWNERSHIP_EMAIL_FROM) return NextResponse.json({ error: "RESEND_CONFIG_MISSING" }, { status: 503 });
   if (!process.env.NEXT_PUBLIC_APP_URL) return NextResponse.json({ error: "APP_URL_NOT_CONFIGURED" }, { status: 503 });
 
   const supabase = getSupabaseAdmin();
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
 
     const email = await sendOwnershipEmail({ requestId, claimId: claim.data.id, recipient: creatorEmail, newsletterTitle: n.title, rawToken });
     const claimResponse = { id: claim.data.id, status: "pending" as const, profileSlug: inserted.data.slug, emailStatus: email.ok ? "sent" as const : "failed" as const, maskedRecipient: maskEmail(creatorEmail) };
-    if (!email.ok) return NextResponse.json({ error: email.errorCode ?? email.reason, claim: claimResponse }, { status: 502 });
+    if (!email.ok) return NextResponse.json({ error: email.reason, claim: claimResponse }, { status: 502 });
     return NextResponse.json({ claim: claimResponse });
   } catch (error) {
     if (typeof error === "object" && error !== null && "code" in error && error.code === "23505") return NextResponse.json({ error: "DUPLICATE_NEWSLETTER" }, { status: 409 });
