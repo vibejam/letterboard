@@ -37,9 +37,9 @@ export function SpreadTheWord({
   return <div className="spread-word-panel">
     <p className="hero-label">FOUNDING 100 / OPTIONAL</p>
     <h1>Spread the word</h1>
-    <p className="spread-word-panel__lede">If you want to help your publication reach more of the right readers, share your place on Letterboard. Sharing is optional, and sharing from the publication’s own account gives us another helpful signal that we are speaking with the right creator.</p>
+    <p className="spread-word-panel__lede">You’ve secured an early place on Letterboard’s Founding 100 — the first 100 newsletters on the board. Share your place with your readers and let them see what you’ve claimed.</p>
     <div className="spread-word-panel__publication"><NewsletterLogo src={safeExternalUrl(logoUrl)} alt={`${title} logo`} initials={initials} /><div><strong>{title}</strong><span>{platformLabel(platform)}</span></div>{foundingPosition ? <b>#{String(foundingPosition).padStart(2, "0")}</b> : <b>Pending review</b>}</div>
-    <p className="spread-word-panel__note">Email confirmation proves control of the inbox only. Your Founding Mark and public profile activate after Letterboard review. Sharing is a signal, not proof by itself.</p>
+    <p className="spread-word-panel__note">Sharing is optional. Your place is already reserved.</p>
     <div className="spread-word-panel__actions">{slug ? <ShareProfileButton slug={slug} newsletterId={newsletterId} newsletterName={title} foundingPosition={foundingPosition} sourcePlatform={platform} newsletterUrl={externalUrl} claimState="pending_review" label="Share my place" /> : null}<Link className="secondary-button" href="/">Maybe later</Link><Link className="secondary-button" href="/#board">Return to the board</Link></div>
   </div>;
 }

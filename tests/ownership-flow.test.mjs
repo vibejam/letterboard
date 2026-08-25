@@ -388,8 +388,9 @@ test("email ownership alone cannot confirm a newsletter", () => {
 test("email verification opens optional review, preserves pending status, and never self-confirms", () => {
   assert.match(dualVerificationMigration, /verification_state = 'email_verified'/);
   assert.match(spreadWord, /Spread the word/);
-  assert.match(spreadWord, /Sharing is optional/);
-  assert.match(spreadWord, /signal, not proof/);
+  assert.match(spreadWord, /You’ve secured an early place on Letterboard’s Founding 100/);
+  assert.match(spreadWord, /Sharing is optional\. Your place is already reserved\./);
+  assert.doesNotMatch(spreadWord, /publication’s own account|Email confirmation proves|signal, not proof/);
   assert.match(spreadWord, /Share my place/);
   assert.match(spreadWord, /Maybe later/);
   assert.match(spreadWord, /Return to the board/);

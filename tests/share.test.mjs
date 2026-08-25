@@ -10,6 +10,7 @@ const confirmationPage = await readFile(new URL("../app/confirmation/page.tsx", 
 const shareCard = await readFile(new URL("../app/components/ShareCard.tsx", import.meta.url), "utf8");
 const boardLib = await readFile(new URL("../lib/board.ts", import.meta.url), "utf8");
 const profileRoute = await readFile(new URL("../app/api/profiles/[slug]/route.ts", import.meta.url), "utf8");
+const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 
 const details = {
   slug: "signal-letter",
@@ -21,22 +22,28 @@ const details = {
 };
 
 for (const platform of ["substack", "medium", "x", "linkedin", "unknown"]) {
-  test(`${platform} share message contains only public founding details`, () => {
+  test(`${platform} share message injects only the public name and profile URL`, () => {
     const plan = buildSharePlan({ ...details, sourcePlatform: platform });
     assert.match(plan.message, /Signal Letter/);
-    assert.match(plan.message, /#7/);
-    assert.match(plan.message, /LEGEND/);
-    assert.match(plan.message, /Founding Mark/);
     assert.match(plan.message, /https:\/\/www\.letterboard\.lol\/signal-letter/);
-    assert.doesNotMatch(plan.message, /private|email|internal_points|confirmation|token|admin/i);
+    assert.equal((plan.message.match(/https:\/\/www\.letterboard\.lol\/signal-letter/g) ?? []).length, 1);
+    assert.doesNotMatch(plan.message, /private|email|internal_points|confirmation|token|admin|newsletterUrl|sourcePlatform/i);
   });
 }
+
+test("platform messages match the exact public templates", () => {
+  assert.equal(buildSharePlan({ ...details, sourcePlatform: "x" }).message, "Locked in my spot in Letterboard's Founding 100 — Signal Letter is officially one of the first 100 in.\n\nhttps://www.letterboard.lol/signal-letter");
+  assert.equal(buildSharePlan({ ...details, sourcePlatform: "linkedin" }).message, "Proud to share that Signal Letter has secured a place in Letterboard's Founding 100 — a small, curated first cohort on a new directory for independent newsletters. Good feeling to have the work recognized this early.\n\nhttps://www.letterboard.lol/signal-letter");
+  assert.equal(buildSharePlan({ ...details, sourcePlatform: "substack" }).message, "Signal Letter just claimed a spot in Letterboard's Founding 100 🎉 First 100 in, no more after that. Come take a look —\n\nhttps://www.letterboard.lol/signal-letter");
+  assert.equal(buildSharePlan({ ...details, sourcePlatform: "medium" }).message, "Signal Letter has been selected into Letterboard's Founding 100 — the first wave of creators building out a new home for independent newsletters. Excited to be this early.\n\nhttps://www.letterboard.lol/signal-letter");
+  assert.equal(buildSharePlan({ ...details, sourcePlatform: "unknown" }).message, "Signal Letter — Founding 100, Letterboard.\n\nhttps://www.letterboard.lol/signal-letter");
+});
 
 test("Substack copies first and opens the signed-in web experience", () => {
   const plan = buildSharePlan({ ...details, sourcePlatform: "substack" });
   assert.equal(plan.destination, "https://substack.com/home");
   assert.equal(plan.copyBeforeOpen, true);
-  assert.equal(plan.toast, "Your Note is ready — paste it into Substack.");
+  assert.equal(plan.toast, "Your Note is copied — paste it into Substack and post when ready.");
   assert.doesNotMatch(plan.toast, /published|posted/i);
 });
 
@@ -44,18 +51,15 @@ test("Medium uses the supported writing destination without claiming a draft was
   const plan = buildSharePlan({ ...details, sourcePlatform: "medium" });
   assert.equal(plan.destination, "https://medium.com/new-story");
   assert.equal(plan.copyBeforeOpen, true);
-  assert.equal(plan.toast, "Your Medium draft is ready — paste the message and publish when ready.");
+  assert.equal(plan.toast, "Your Medium message is copied — paste it into your draft and publish when ready.");
   assert.doesNotMatch(plan.toast, /created|published/i);
 });
 
-test("pending review sharing uses truthful wording and no invented position or Founding Mark", () => {
+test("pending review sharing uses the same status-signaling templates without private fields", () => {
   const plan = buildSharePlan({ ...details, foundingPosition: null, tier: null, claimState: "pending_review", sourcePlatform: "substack" });
   assert.equal(plan.destination, "https://substack.com/home");
   assert.equal(plan.copyBeforeOpen, true);
-  assert.match(plan.message, /submitted Signal Letter/);
-  assert.match(plan.message, /Founding 100/);
-  assert.match(plan.message, /https:\/\/www\.letterboard\.lol\/signal-letter/);
-  assert.doesNotMatch(plan.message, /#\d|Founding Mark|joined|verified/i);
+  assert.equal(plan.message, "Signal Letter just claimed a spot in Letterboard's Founding 100 🎉 First 100 in, no more after that. Come take a look —\n\nhttps://www.letterboard.lol/signal-letter");
 });
 
 test("X uses an encoded web intent with the profile URL and stays within 280 characters", () => {
@@ -63,8 +67,11 @@ test("X uses an encoded web intent with the profile URL and stays within 280 cha
   const intent = new URL(plan.destination);
   assert.equal(intent.origin, "https://x.com");
   assert.equal(intent.pathname, "/intent/post");
-  assert.equal(intent.searchParams.get("url"), details.profileUrl);
-  assert.ok((intent.searchParams.get("text") ?? "").length <= xCharacterLimit);
+  const text = intent.searchParams.get("text") ?? "";
+  assert.equal(intent.searchParams.has("url"), false);
+  assert.equal((text.match(/https:\/\/www\.letterboard\.lol\/signal-letter/g) ?? []).length, 1);
+  assert.ok(text.length <= xCharacterLimit);
+  assert.equal(text, plan.message);
   assert.equal(plan.copyBeforeOpen, false);
   assert.equal(isWhitelistedShareUrl(plan.destination, "x"), true);
 });
@@ -73,7 +80,15 @@ test("LinkedIn copies the message and opens the post composer", () => {
   const plan = buildSharePlan({ ...details, sourcePlatform: "linkedin" });
   assert.equal(plan.destination, "https://www.linkedin.com/feed/?shareActive=true");
   assert.equal(plan.copyBeforeOpen, true);
-  assert.equal(plan.toast, "Message copied — paste it into your LinkedIn post and publish.");
+  assert.equal(plan.toast, "Your LinkedIn message is copied — paste the message into your post.");
+});
+
+test("clipboard-first platforms open only after a successful copy", () => {
+  assert.match(button, /const copied = await copyPlan\(plan\)/);
+  assert.match(button, /if \(!copied\) return;/);
+  assert.match(button, /Your message is ready/);
+  assert.match(button, /navigator\.clipboard/);
+  assert.doesNotMatch(button, /share_posted|published successfully|posted successfully/i);
 });
 
 test("unknown platforms copy and fall back to the verified publication URL", () => {
@@ -115,7 +130,8 @@ test("share destinations reject non-HTTPS URLs and non-platform hosts", () => {
 test("the chooser keeps destination selection explicit and supports copy/share-sheet paths", () => {
   const copy = buildSharePlan({ ...details, sourcePlatform: "substack" }, "copy");
   assert.equal(copy.platform, "copy");
-  assert.equal(copy.copyText, details.profileUrl);
+  assert.equal(copy.copyText, copy.message);
+  assert.equal((copy.copyText.match(/https:\/\/www\.letterboard\.lol\/signal-letter/g) ?? []).length, 1);
   const sheet = buildSharePlan({ ...details, sourcePlatform: "substack" }, "share");
   assert.equal(sheet.platform, "share");
   assert.equal(sheet.destination, null);
@@ -136,6 +152,13 @@ test("clipboard failures expose a branded copy panel without private fields", ()
   assert.match(button, /target = "_blank"/);
   assert.match(button, /rel = "noopener noreferrer"/);
   assert.doesNotMatch(button, /internal_points|contact_email|confirmationToken|adminData/);
+});
+
+test("share chooser and copy panel fit mobile viewports without horizontal overflow", () => {
+  assert.match(styles, /\.share-chooser[^}]*box-sizing:border-box/);
+  assert.match(styles, /\.share-copy-panel[^}]*box-sizing:border-box/);
+  assert.match(styles, /@media \(max-width:620px\)[\s\S]*\.share-chooser,\.share-copy-panel/);
+  assert.match(styles, /\.share-copy-panel__message[^}]*max-width:100%/);
 });
 
 test("the shared share action is wired to confirmation, profile, and share-card views", () => {

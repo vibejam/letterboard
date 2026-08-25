@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { buildSharePlan, type PublicTier, type SharePlan, type SharePlatform, publicProfileUrl } from "@/lib/share";
 import { capture } from "@/lib/posthog";
 
@@ -39,6 +39,18 @@ export function ShareProfileButton({ slug, newsletterName, foundingPosition, tie
   const [toast, setToast] = useState<string>();
   const [copyPanel, setCopyPanel] = useState<CopyPanelState>(null);
   const [chooserOpen, setChooserOpen] = useState(false);
+
+  useEffect(() => {
+    if (!chooserOpen && !copyPanel) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setChooserOpen(false);
+        setCopyPanel(null);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [chooserOpen, copyPanel]);
 
   function showToast(message: string) {
     setToast(message);
@@ -95,7 +107,7 @@ export function ShareProfileButton({ slug, newsletterName, foundingPosition, tie
     if (plan.platform === "share") {
       if (navigator.share) {
         try {
-          await navigator.share({ title: newsletterName, text: plan.message, url: publicProfileUrl(slug) ?? undefined });
+          await navigator.share({ title: newsletterName, text: plan.message });
           recordShare(plan, "web_share");
           capture("share_composer_opened", { platform: plan.platform, outcome: "opened" });
           showToast(plan.toast);
