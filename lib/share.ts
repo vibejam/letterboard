@@ -1,7 +1,8 @@
 import { safeExternalUrl } from "./urls.ts";
 
 export type PublicTier = "og" | "legend" | "icon" | "pioneer";
-export type SharePlatform = "substack" | "medium" | "x" | "linkedin" | "unknown";
+export type SharePlatform = "substack" | "medium" | "x" | "linkedin" | "unknown" | "copy" | "share";
+type NativeSharePlatform = "substack" | "medium" | "x" | "linkedin";
 
 export type ShareDetails = {
   slug: string;
@@ -20,9 +21,10 @@ export type SharePlan = {
   copyBeforeOpen: boolean;
   toast: string;
   fallback: boolean;
+  copyText?: string;
 };
 
-const PLATFORM_HOSTS: Record<Exclude<SharePlatform, "unknown">, ReadonlySet<string>> = {
+const PLATFORM_HOSTS: Record<NativeSharePlatform, ReadonlySet<string>> = {
   substack: new Set(["substack.com", "www.substack.com"]),
   medium: new Set(["medium.com", "www.medium.com"]),
   x: new Set(["x.com", "www.x.com"]),
@@ -70,10 +72,10 @@ export function publicProfileUrl(slug: string) {
   return SAFE_SLUG.test(slug) ? `https://www.letterboard.lol/${slug}` : null;
 }
 
-export function isWhitelistedShareUrl(value: string, platform: Exclude<SharePlatform, "unknown">) {
+export function isWhitelistedShareUrl(value: string, platform: NativeSharePlatform) {
   try {
     const url = new URL(value);
-    const paths: Record<Exclude<SharePlatform, "unknown">, string> = { substack: "/home", medium: "/new-story", x: "/intent/post", linkedin: "/feed/" };
+    const paths: Record<NativeSharePlatform, string> = { substack: "/home", medium: "/new-story", x: "/intent/post", linkedin: "/feed/" };
     return url.protocol === "https:" && PLATFORM_HOSTS[platform].has(url.hostname.toLowerCase()) && url.pathname === paths[platform];
   } catch {
     return false;
@@ -92,7 +94,7 @@ function baseMessage(details: ShareDetails) {
 function substackMessage(details: ShareDetails) {
   const { name, position, tier, profile, newsletter } = baseMessage(details);
   return [
-    `I’m sharing ${name} — ${position} ${tier} on Letterboard with a verified Founding Mark.`,
+    `I’m sharing ${name} — ${position} ${tier} on Letterboard’s Founding 100 with a verified Founding Mark.`,
     newsletter ? `Read the newsletter: ${newsletter}` : null,
     `Public profile: ${profile}`,
     "#FoundingMark #Letterboard",
@@ -102,7 +104,7 @@ function substackMessage(details: ShareDetails) {
 function mediumMessage(details: ShareDetails) {
   const { name, position, tier, profile, newsletter } = baseMessage(details);
   return [
-    `${name} is ${position} ${tier} on Letterboard, with a verified Founding Mark.`,
+    `${name} is ${position} ${tier} on Letterboard’s Founding 100, with a verified Founding Mark.`,
     `Public profile: ${profile}`,
     newsletter ? `Read the newsletter: ${newsletter}` : null,
   ].filter(Boolean).join("\n\n");
@@ -110,14 +112,14 @@ function mediumMessage(details: ShareDetails) {
 
 function xMessage(details: ShareDetails) {
   const { name, position, tier, profile } = baseMessage(details);
-  const suffix = ` is ${position} ${tier} on Letterboard with a Founding Mark. ${profile}`;
+  const suffix = ` is ${position} ${tier} on Letterboard’s Founding 100 with a Founding Mark. ${profile}`;
   return `${name.slice(0, Math.max(1, X_CHARACTER_LIMIT - suffix.length))}${suffix}`.slice(0, X_CHARACTER_LIMIT);
 }
 
 function linkedinMessage(details: ShareDetails) {
   const { name, position, tier, profile, newsletter } = baseMessage(details);
   return [
-    `Proud to share ${name}: ${position} ${tier} on Letterboard with a verified Founding Mark.`,
+    `Proud to share ${name}: ${position} ${tier} on Letterboard’s Founding 100 with a verified Founding Mark.`,
     `Public profile: ${profile}`,
     newsletter ? `Read it: ${newsletter}` : null,
   ].filter(Boolean).join("\n\n");
@@ -126,7 +128,7 @@ function linkedinMessage(details: ShareDetails) {
 function fallbackMessage(details: ShareDetails) {
   const { name, position, tier, profile, newsletter } = baseMessage(details);
   return [
-    `${name} is ${position} ${tier} on Letterboard with a verified Founding Mark.`,
+    `${name} is ${position} ${tier} on Letterboard’s Founding 100 with a verified Founding Mark.`,
     `Public profile: ${profile}`,
     newsletter ? `Newsletter: ${newsletter}` : null,
   ].filter(Boolean).join("\n\n");
@@ -142,13 +144,17 @@ export function createShareMessage(details: ShareDetails, platform = normalizeSh
   return fallbackMessage(details);
 }
 
-export function buildSharePlan(details: ShareDetails): SharePlan {
+export function buildSharePlan(details: ShareDetails, selectedPlatform?: SharePlatform): SharePlan {
   const storedPlatform = normalizeSharePlatform(details.sourcePlatform);
-  const platform = storedPlatform === "unknown" ? inferSharePlatformFromCanonicalUrl(details.newsletterUrl) : storedPlatform;
+  const inferredPlatform = storedPlatform === "unknown" ? inferSharePlatformFromCanonicalUrl(details.newsletterUrl) : storedPlatform;
+  const platform = selectedPlatform ?? inferredPlatform;
   const profileUrl = safeExternalUrl(details.profileUrl);
   if (!profileUrl) throw new Error("INVALID_PROFILE_URL");
   const normalizedDetails = { ...details, profileUrl };
   const message = createShareMessage(normalizedDetails, platform);
+
+  if (platform === "copy") return { platform, message, destination: null, copyBeforeOpen: true, toast: "Your share message is copied.", fallback: false, copyText: profileUrl };
+  if (platform === "share") return { platform, message, destination: null, copyBeforeOpen: true, toast: "Choose an app from your share sheet.", fallback: false };
 
   if (platform === "substack") return { platform, message, destination: "https://substack.com/home", copyBeforeOpen: true, toast: "Your Note is ready — paste it into Substack.", fallback: false };
   if (platform === "medium") return { platform, message, destination: "https://medium.com/new-story", copyBeforeOpen: true, toast: "Your Medium draft is ready — paste the message and publish when ready.", fallback: false };
@@ -160,7 +166,7 @@ export function buildSharePlan(details: ShareDetails): SharePlan {
     if (!isWhitelistedShareUrl(intentUrl, "x")) throw new Error("UNSUPPORTED_URL");
     return { platform, message, destination: intentUrl, copyBeforeOpen: false, toast: "Your X composer is ready — review it and click Post.", fallback: false };
   }
-  if (platform === "linkedin") return { platform, message, destination: "https://www.linkedin.com/feed/?shareActive=true", copyBeforeOpen: true, toast: "Your LinkedIn post is ready — paste the message into the composer.", fallback: false };
+  if (platform === "linkedin") return { platform, message, destination: "https://www.linkedin.com/feed/?shareActive=true", copyBeforeOpen: true, toast: "Message copied — paste it into your LinkedIn post and publish.", fallback: false };
 
   return { platform, message, destination: safeExternalUrl(details.newsletterUrl), copyBeforeOpen: true, toast: "Your share message is copied.", fallback: true };
 }

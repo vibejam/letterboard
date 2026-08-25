@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getNewsletterClickCount } from "@/lib/board";
+import { inferSharePlatformFromCanonicalUrl } from "@/lib/share";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -12,5 +13,6 @@ export async function GET(_request: Request, context: { params: Promise<{ slug: 
   if (result.error || !result.data) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404, headers: { "Cache-Control": "no-store" } });
   const clicks = await getNewsletterClickCount(supabase, result.data.id);
   if (clicks === null) return NextResponse.json({ error: "UNAVAILABLE" }, { status: 503, headers: { "Cache-Control": "no-store" } });
-  return NextResponse.json({ profile: { ...result.data, newsletter_clicks: clicks } }, { headers: { "Cache-Control": "no-store" } });
+  const inferredPlatform = inferSharePlatformFromCanonicalUrl(result.data.canonical_url);
+  return NextResponse.json({ profile: { ...result.data, source_platform: result.data.source_platform ?? (inferredPlatform === "unknown" ? null : inferredPlatform), newsletter_clicks: clicks } }, { headers: { "Cache-Control": "no-store" } });
 }

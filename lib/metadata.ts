@@ -119,13 +119,16 @@ function jsonLdLogo(html: string) {
 
 export function extractLogoCandidates(html: string): LogoCandidate[] {
   const candidates: LogoCandidate[] = [];
-  const add = (value: string | null, source: LogoCandidate["source"]) => { if (value && !candidates.some((candidate) => candidate.url === value)) candidates.push({ url: value, source }); };
-  add(metaValue(html, ["og:image", "og:image:url"]), "og:image");
-  add(metaValue(html, ["twitter:image", "twitter:image:src"]), "twitter:image");
+  const add = (value: string | null, source: LogoCandidate["source"]) => {
+    if (!value || (source === "og:image" || source === "twitter:image") && /subscribe-card(?:\.|\/|$)/i.test(value)) return;
+    if (!candidates.some((candidate) => candidate.url === value)) candidates.push({ url: value, source });
+  };
+  add(metaValue(html, ["substack:logo", "profile:image", "publication:image"]), "platform");
   add(linkValue(html, ["apple-touch-icon", "apple-touch-icon-precomposed"]), "apple-touch-icon");
   add(linkValue(html, ["icon", "shortcut", "image_src"]), "favicon");
   add(jsonLdLogo(html), "json-ld");
-  add(metaValue(html, ["substack:logo", "profile:image", "publication:image"]), "platform");
+  add(metaValue(html, ["og:image", "og:image:url"]), "og:image");
+  add(metaValue(html, ["twitter:image", "twitter:image:src"]), "twitter:image");
   return candidates;
 }
 
@@ -175,6 +178,47 @@ async function validateImageCandidate(value: string, base: URL) {
     if (!size || size.width < 16 || size.height < 16 || size.width > 4096 || size.height > 4096) return null;
     return { url: url.toString(), width: size.width, height: size.height };
   } catch { return null; }
+}
+
+function verificationCodePattern(value: string) {
+  return /^LB-[0-9]{6}$/i.test(value.trim());
+}
+
+function containsVerificationCode(html: string, code: string) {
+  if (!verificationCodePattern(code)) return false;
+  const escaped = code.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?:^|[^A-Z0-9])${escaped}(?:$|[^A-Z0-9])`, "i").test(html);
+}
+
+export async function verifyPublicOwnershipCode(input: string, code: string) {
+  if (!verificationCodePattern(code)) return false;
+  const normalized = normalizeNewsletterUrl(input);
+  const root = new URL(normalized.canonicalUrl);
+  const paths = [...new Set(["/", "/about", root.pathname])];
+  for (const path of paths) {
+    try {
+      const page = new URL(path, root);
+      const response = await safeFetch(page, { headers: { accept: "text/html,application/xhtml+xml" }, signal: AbortSignal.timeout(7000) }, true);
+      if (!response.ok) continue;
+      const type = response.headers.get("content-type") ?? "";
+      if (!type.toLowerCase().includes("text/html") && !type.toLowerCase().includes("application/xhtml+xml")) continue;
+      const html = htmlFromBytes(await readCappedBody(response, 500_000));
+      if (containsVerificationCode(html, code)) return true;
+    } catch { /* an unavailable public location is not proof */ }
+  }
+  return false;
+}
+
+export async function verifyDnsOwnershipCode(input: string, code: string) {
+  if (!verificationCodePattern(code)) return false;
+  const normalized = normalizeNewsletterUrl(input);
+  const host = new URL(normalized.canonicalUrl).hostname.toLowerCase().replace(/^www\./, "");
+  try {
+    const records = await dns.resolveTxt(`_letterboard.${host}`);
+    return records.flat().some((record) => record.trim() === code.trim());
+  } catch {
+    return false;
+  }
 }
 
 export async function resolvePublicMetadata(input: string) {

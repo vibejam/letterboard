@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const migration = await readFile(new URL("../supabase/migrations/20260824040407_founding_tier_points.sql", import.meta.url), "utf8");
+const dualVerificationMigration = await readFile(new URL("../supabase/migrations/20260825132929_dual_ownership_verification.sql", import.meta.url), "utf8");
 const baseMigration = await readFile(new URL("../supabase/migrations/20260822190743_founding100_schema.sql", import.meta.url), "utf8");
 const claimsRoute = await readFile(new URL("../app/api/claims/route.ts", import.meta.url), "utf8");
 const confirmRoute = await readFile(new URL("../app/api/claims/confirm/route.ts", import.meta.url), "utf8");
@@ -68,5 +69,7 @@ test("pending profiles and duplicate confirmations remain protected", () => {
 test("confirmation assigns the tier exactly once in the transaction", () => {
   assert.match(migration, /returns table \(confirmed boolean, founding_position integer, founding_tier text, profile_slug text\)/);
   assert.equal((migration.match(/create or replace function public\.confirm_ownership/g) ?? []).length, 1);
-  assert.match(confirmRoute, /tier: String\(result\.founding_tier\)\.toLowerCase\(\)/);
+  assert.match(dualVerificationMigration, /claim_founding_position/);
+  assert.match(dualVerificationMigration, /founding_tier = v_tier/);
+  assert.match(confirmRoute, /status: "email_verified"/);
 });

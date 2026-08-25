@@ -23,6 +23,8 @@ const confirmationPage = await readFile(new URL("../app/confirmation/page.tsx", 
 const publicProfilePage = await readFile(new URL("../app/[slug]/page.tsx", import.meta.url), "utf8");
 const migration = await readFile(new URL("../supabase/migrations/20260823120000_ownership_confirmation_transaction.sql", import.meta.url), "utf8");
 const hardeningMigration = await readFile(new URL("../supabase/migrations/20260824192622_creator_identity_bans_and_logo_source.sql", import.meta.url), "utf8");
+const dualVerificationMigration = await readFile(new URL("../supabase/migrations/20260825132929_dual_ownership_verification.sql", import.meta.url), "utf8");
+const platformPanel = await readFile(new URL("../app/components/PlatformVerificationPanel.tsx", import.meta.url), "utf8");
 
 test("creator email is required, validated, and masked", () => {
   assert.equal(normalizeCreatorEmail(undefined), null);
@@ -43,8 +45,15 @@ test("publication normalization collapses equivalent platform URLs and external 
 test("logo extraction prioritizes the approved source order and supports custom Substack platform metadata", () => {
   const html = `<meta property="og:image" content="https://cdn.example/og.png"><meta name="twitter:image" content="https://cdn.example/twitter.png"><link rel="icon" href="/favicon.png"><link rel="apple-touch-icon" href="/apple.png"><script type="application/ld+json">{"publisher":{"logo":{"url":"https://cdn.example/jsonld.png"}}}</script><meta name="substack:logo" content="https://cdn.example/letterboard-l.png">`;
   const candidates = extractLogoCandidates(html);
-  assert.deepEqual(candidates.map((candidate) => candidate.source), ["og:image", "twitter:image", "apple-touch-icon", "favicon", "json-ld", "platform"]);
-  assert.equal(candidates.at(-1)?.url, "https://cdn.example/letterboard-l.png");
+  assert.deepEqual(candidates.map((candidate) => candidate.source), ["platform", "apple-touch-icon", "favicon", "json-ld", "og:image", "twitter:image"]);
+  assert.equal(candidates[0]?.url, "https://cdn.example/letterboard-l.png");
+});
+
+test("Substack publication icons outrank and reject subscribe-card artwork", () => {
+  const html = `<meta property="og:image" content="https://cdn.example/twitter/subscribe-card.jpg"><meta name="twitter:image" content="https://cdn.example/twitter/subscribe-card.jpg"><link rel="apple-touch-icon" href="https://cdn.example/apple-touch-icon.png">`;
+  const candidates = extractLogoCandidates(html);
+  assert.deepEqual(candidates.map((candidate) => candidate.source), ["apple-touch-icon"]);
+  assert.doesNotMatch(candidates[0]?.url ?? "", /subscribe-card/i);
 });
 
 test("server resolver selects a valid uploaded Substack logo when higher-priority sources are absent", async () => {
@@ -137,7 +146,7 @@ test("routes enforce explicit email, resend rate limiting, and transactional con
   assert.match(resendRoute, /contact_email/);
   assert.match(claimFlow, /fetch\("\/api\/claims\/resend"/);
   assert.doesNotMatch(claimFlow, /if \(!claimId\) return createClaim/);
-  assert.match(confirmRoute, /confirm_ownership/);
+  assert.match(confirmRoute, /confirm_email_ownership/);
   assert.match(migration, /pg_advisory_xact_lock/);
   assert.match(migration, /ownership_status = 'confirmed'/);
   assert.match(migration, /event_type, approved/);
@@ -184,7 +193,7 @@ test("admin repair keeps confirmed and rejected claims out of the resend path", 
 
 test("confirmation redirects to branded UI and removes the token from the visible URL", () => {
   assert.match(confirmRoute, /confirmationRedirect/);
-  assert.match(confirmRoute, /status: "confirmed"/);
+  assert.match(confirmRoute, /status: "email_verified"/);
   assert.match(confirmRoute, /NextResponse\.redirect/);
   assert.doesNotMatch(confirmRoute, /NextResponse\.json/);
   assert.match(confirmationPage, /Your Founding Mark is live\./);
@@ -299,6 +308,30 @@ test("one creator, duplicate publication, and permanent ban safeguards are datab
   assert.match(banRoute, /creatorIdentityHash/);
   assert.match(banRoute, /ban_creator/);
   assert.doesNotMatch(banRoute, /console\.(info|warn|error)/);
+});
+
+test("email ownership alone cannot confirm a newsletter", () => {
+  assert.match(dualVerificationMigration, /verification_state/);
+  for (const state of ["email_verified", "platform_verified", "fully_verified", "legacy_email_only", "manual_review_required", "rejected"]) assert.match(dualVerificationMigration, new RegExp(state));
+  assert.match(dualVerificationMigration, /confirm_email_ownership/);
+  assert.match(dualVerificationMigration, /start_platform_verification/);
+  assert.match(dualVerificationMigration, /verify_platform_ownership/);
+  assert.match(dualVerificationMigration, /status = 'confirmed', verification_state = 'fully_verified'/);
+  assert.match(dualVerificationMigration, /PLATFORM_VERIFICATION_REQUIRED/);
+  assert.doesNotMatch(dualVerificationMigration, /confirm_email_ownership[\s\S]{0,500}founding_position/);
+  assert.match(confirmRoute, /confirm_email_ownership/);
+  assert.doesNotMatch(confirmRoute, /rpc\("confirm_ownership"/);
+  assert.match(platformPanel, /Email confirmation proves control of the inbox only/);
+  assert.match(platformPanel, /Prove you control this publication/);
+});
+
+test("platform verification methods are safe and never store raw codes", () => {
+  assert.match(dualVerificationMigration, /substack_public_code/);
+  assert.match(dualVerificationMigration, /dns_txt/);
+  assert.match(dualVerificationMigration, /manual_review_required/);
+  assert.match(platformPanel, /one-time code/);
+  assert.doesNotMatch(dualVerificationMigration, /raw_code|verification_code text/);
+  assert.doesNotMatch(platformPanel, /contact_email|internal_points|platformSubject/);
 });
 
 test("live board reconciliation refreshes without a manual reload", () => {

@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "./supabaseAdmin";
 import { safeExternalUrl } from "./urls";
+import { inferSharePlatformFromCanonicalUrl } from "./share";
 
 type AdminClient = NonNullable<ReturnType<typeof getSupabaseAdmin>>;
 type BoardRow = { id: string; slug: string; title: string; description?: string | null; logo_url?: string | null; logo_source?: string | null; canonical_url: string; source_platform?: string | null; founding_position: number | null; founding_tier?: string | null; newsletter_clicks?: number | null; ownership_status: string };
@@ -29,6 +30,9 @@ export async function getBoardPayload(): Promise<BoardPayload | null> {
   if (clicks.error) return null;
   const clickCounts = new Map<string, number>();
   for (const click of clicks.data ?? []) clickCounts.set(click.newsletter_id, (clickCounts.get(click.newsletter_id) ?? 0) + 1);
-  const safeRows = board.data.map((row) => ({ ...row, logo_url: safeExternalUrl(row.logo_url), newsletter_clicks: clickCounts.get(row.id) ?? 0 }));
+  const safeRows = board.data.map((row) => {
+    const inferredPlatform = inferSharePlatformFromCanonicalUrl(row.canonical_url);
+    return { ...row, source_platform: row.source_platform ?? (inferredPlatform === "unknown" ? null : inferredPlatform), logo_url: safeExternalUrl(row.logo_url), newsletter_clicks: clickCounts.get(row.id) ?? 0 };
+  });
   return { stats: { claimed: safeRows.length, total: 100 }, top: safeRows.slice(0, 3), rows: safeRows.slice(3), activity: activity.data ?? [] };
 }
