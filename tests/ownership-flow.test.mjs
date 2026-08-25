@@ -25,6 +25,7 @@ const publicProfilePage = await readFile(new URL("../app/[slug]/page.tsx", impor
 const migration = await readFile(new URL("../supabase/migrations/20260823120000_ownership_confirmation_transaction.sql", import.meta.url), "utf8");
 const hardeningMigration = await readFile(new URL("../supabase/migrations/20260824192622_creator_identity_bans_and_logo_source.sql", import.meta.url), "utf8");
 const retryMigration = await readFile(new URL("../supabase/migrations/20260825145156_allow_rejected_publication_retry.sql", import.meta.url), "utf8");
+const qualificationMigration = await readFile(new URL("../supabase/migrations/20260825153247_qualify_create_pending_claim_references.sql", import.meta.url), "utf8");
 const dualVerificationMigration = await readFile(new URL("../supabase/migrations/20260825132929_dual_ownership_verification.sql", import.meta.url), "utf8");
 const inferredPlatformMigration = await readFile(new URL("../supabase/migrations/20260825140318_infer_platform_for_ownership_verification.sql", import.meta.url), "utf8");
 const platformPanel = await readFile(new URL("../app/components/PlatformVerificationPanel.tsx", import.meta.url), "utf8");
@@ -339,6 +340,26 @@ test("rejected publication retry is transactional, idempotent, and preserves pri
   assert.match(claimFlow, /response\.status === 409 \? "idle"/);
   assert.match(claimFlow, /if \(response\.status === 409\) setStep\("preview"\)/);
   assert.match(ownership, /logOwnershipEmail\(\{ requestId, claimId, providerCalled: true/);
+});
+
+test("corrective claim migration qualifies output-parameter collisions", () => {
+  const sql = qualificationMigration.replace(/--.*$/gm, "");
+  assert.match(sql, /create or replace function public\.create_pending_claim/);
+  assert.match(sql, /returns table \(claim_id uuid, newsletter_id uuid, profile_slug text, newsletter_title text\)/);
+  assert.match(sql, /from public\.claims c[\s\S]*c\.newsletter_id = v_existing\.id[\s\S]*c\.status in \('pending', 'confirmed'\)/);
+  assert.match(sql, /from public\.newsletters n[\s\S]*n\.normalized_url = p_normalized_url/);
+  assert.match(sql, /update public\.newsletters n[\s\S]*where n\.id = v_newsletter_id/);
+  assert.match(sql, /update public\.public_profiles pp[\s\S]*where pp\.newsletter_id = v_newsletter_id/);
+  assert.match(sql, /insert into public\.claims/);
+  assert.match(sql, /CREATOR_ALREADY_CLAIMED/);
+  assert.match(sql, /CREATOR_BANNED/);
+  assert.match(sql, /PUBLICATION_ALREADY_CLAIMED/);
+  assert.match(sql, /ownership_status = 'pending'/);
+  assert.match(boardLib, /ownership_status.*confirmed/);
+  assert.doesNotMatch(sql, /\bwhere\s+(newsletter_id|claim_id|status|founding_position|founding_tier|slug|normalized_url|canonical_url)\b/i);
+  assert.doesNotMatch(sql, /\band\s+(newsletter_id|claim_id|status|founding_position|founding_tier|slug|normalized_url|canonical_url)\b/i);
+  assert.doesNotMatch(sql, /delete\s+from/i);
+  assert.doesNotMatch(claimFlow, /Email could not be sent/);
 });
 
 test("email ownership alone cannot confirm a newsletter", () => {

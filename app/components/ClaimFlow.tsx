@@ -168,7 +168,7 @@ export function ClaimFlow({ open, onClose, initialNewsletter, liveNewsletter, on
   const shareTier = foundingTier ?? "og";
   const shareProps = shareSlug ? { slug: shareSlug, newsletterName: newsletter.name, foundingPosition: sharePosition, tier: shareTier, sourcePlatform: newsletter.sourcePlatform, newsletterUrl: newsletter.url } : null;
 
-  const emailTitle = emailStatus === "sending" ? "Sending confirmation email" : emailStatus === "sent" ? "Confirmation email sent" : emailStatus === "failed" ? "Email could not be sent" : "Confirmation email required";
+  const emailTitle = emailStatus === "sending" ? "Sending confirmation email" : emailStatus === "sent" ? "Confirmation email sent" : emailStatus === "failed" ? "Confirmation email delivery failed" : "Confirmation email required";
   const emailDetail = emailStatus === "sent" ? `Sent to ${maskedRecipient ?? "your private creator email"}` : emailStatus === "failed" ? "Your profile remains pending until ownership is confirmed." : emailStatus === "sending" ? "Please wait while Letterboard contacts you." : "Enter your private creator email in the previous step.";
 
   return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}><section className="claim-modal" role="dialog" aria-modal="true" aria-labelledby="claim-title">
