@@ -21,7 +21,7 @@ export async function getBoardPayload(): Promise<BoardPayload | null> {
   if (!supabase) return { stats: { claimed: 0, total: 100 }, top: [], rows: [], activity: [] };
   const [board, activity] = await Promise.all([
     supabase.from("newsletters").select("id,slug,title,description,logo_url,logo_source,canonical_url,source_platform,founding_position,founding_tier,ownership_status").eq("ownership_status", "confirmed").not("founding_position", "is", null).order("founding_position", { ascending: true }),
-    supabase.from("activity_events").select("id,event_type,created_at,newsletters(title,slug)").eq("approved", true).order("created_at", { ascending: false }).limit(8),
+    supabase.from("activity_events").select("id,event_type,created_at,newsletters!inner(title,slug)").eq("approved", true).eq("newsletters.ownership_status", "confirmed").order("created_at", { ascending: false }).limit(8),
   ]);
   if (board.error) return null;
   const newsletterIds = board.data.map((row) => row.id);
