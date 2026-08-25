@@ -7,11 +7,12 @@ type NativeSharePlatform = "substack" | "medium" | "x" | "linkedin";
 export type ShareDetails = {
   slug: string;
   newsletterName: string;
-  foundingPosition: number;
-  tier: PublicTier;
+  foundingPosition?: number | null;
+  tier?: PublicTier | null;
   sourcePlatform?: string | null;
   newsletterUrl?: string | null;
   profileUrl: string;
+  claimState?: "confirmed" | "pending_review";
 };
 
 export type SharePlan = {
@@ -21,6 +22,7 @@ export type SharePlan = {
   copyBeforeOpen: boolean;
   toast: string;
   fallback: boolean;
+  shareUrl: string;
   copyText?: string;
 };
 
@@ -84,8 +86,8 @@ export function isWhitelistedShareUrl(value: string, platform: NativeSharePlatfo
 
 function baseMessage(details: ShareDetails) {
   const name = clean(details.newsletterName);
-  const position = `#${Math.max(1, Math.round(details.foundingPosition))}`;
-  const tier = tierLabel(details.tier);
+  const position = details.foundingPosition ? `#${Math.max(1, Math.round(details.foundingPosition))}` : null;
+  const tier = details.tier ? tierLabel(details.tier) : null;
   const profile = details.profileUrl;
   const newsletter = safeExternalUrl(details.newsletterUrl);
   return { name, position, tier, profile, newsletter };
@@ -99,6 +101,14 @@ function substackMessage(details: ShareDetails) {
     `Public profile: ${profile}`,
     "#FoundingMark #Letterboard",
   ].filter(Boolean).join("\n\n");
+}
+
+function pendingMessage(details: ShareDetails, platform: SharePlatform) {
+  const { name, profile, newsletter } = baseMessage(details);
+  if (platform === "x") return `${name} is under review for Letterboard’s Founding 100. ${profile}`.slice(0, X_CHARACTER_LIMIT);
+  if (platform === "linkedin") return [`I’ve submitted ${name} to Letterboard’s Founding 100 for review.`, `Find it here: ${profile}`, newsletter ? `Read it: ${newsletter}` : null].filter(Boolean).join("\n\n");
+  if (platform === "medium") return [`I’ve submitted ${name} to Letterboard’s Founding 100 for review.`, `Find it here: ${profile}`, newsletter ? `Read the newsletter: ${newsletter}` : null].filter(Boolean).join("\n\n");
+  return [`I’ve submitted ${name} to Letterboard’s Founding 100 for review.`, newsletter ? `Read the newsletter: ${newsletter}` : null, `Find it here: ${profile}`].filter(Boolean).join("\n\n");
 }
 
 function mediumMessage(details: ShareDetails) {
@@ -135,8 +145,9 @@ function fallbackMessage(details: ShareDetails) {
 }
 
 export function createShareMessage(details: ShareDetails, platform = normalizeSharePlatform(details.sourcePlatform)) {
-  if (!PUBLIC_TIERS.has(details.tier)) throw new Error("INVALID_PUBLIC_TIER");
   if (!safeExternalUrl(details.profileUrl)) throw new Error("INVALID_PROFILE_URL");
+  if (details.claimState === "pending_review") return pendingMessage(details, platform);
+  if (!details.tier || !PUBLIC_TIERS.has(details.tier) || !details.foundingPosition) throw new Error("INVALID_PUBLIC_TIER");
   if (platform === "substack") return substackMessage(details);
   if (platform === "medium") return mediumMessage(details);
   if (platform === "x") return xMessage(details);
@@ -153,22 +164,22 @@ export function buildSharePlan(details: ShareDetails, selectedPlatform?: SharePl
   const normalizedDetails = { ...details, profileUrl };
   const message = createShareMessage(normalizedDetails, platform);
 
-  if (platform === "copy") return { platform, message, destination: null, copyBeforeOpen: true, toast: "Your share message is copied.", fallback: false, copyText: profileUrl };
-  if (platform === "share") return { platform, message, destination: null, copyBeforeOpen: true, toast: "Choose an app from your share sheet.", fallback: false };
+  if (platform === "copy") return { platform, message, destination: null, copyBeforeOpen: true, toast: "Your share message is copied.", fallback: false, shareUrl: profileUrl, copyText: profileUrl };
+  if (platform === "share") return { platform, message, destination: null, copyBeforeOpen: true, toast: "Choose an app from your share sheet.", fallback: false, shareUrl: profileUrl };
 
-  if (platform === "substack") return { platform, message, destination: "https://substack.com/home", copyBeforeOpen: true, toast: "Your Note is ready — paste it into Substack.", fallback: false };
-  if (platform === "medium") return { platform, message, destination: "https://medium.com/new-story", copyBeforeOpen: true, toast: "Your Medium draft is ready — paste the message and publish when ready.", fallback: false };
+  if (platform === "substack") return { platform, message, destination: "https://substack.com/home", copyBeforeOpen: true, toast: "Your Note is ready — paste it into Substack.", fallback: false, shareUrl: profileUrl };
+  if (platform === "medium") return { platform, message, destination: "https://medium.com/new-story", copyBeforeOpen: true, toast: "Your Medium draft is ready — paste the message and publish when ready.", fallback: false, shareUrl: profileUrl };
   if (platform === "x") {
     const destination = new URL("https://x.com/intent/post");
     destination.searchParams.set("text", message);
     destination.searchParams.set("url", profileUrl);
     const intentUrl = destination.toString();
     if (!isWhitelistedShareUrl(intentUrl, "x")) throw new Error("UNSUPPORTED_URL");
-    return { platform, message, destination: intentUrl, copyBeforeOpen: false, toast: "Your X composer is ready — review it and click Post.", fallback: false };
+    return { platform, message, destination: intentUrl, copyBeforeOpen: false, toast: "Your X composer is ready — review it and click Post.", fallback: false, shareUrl: profileUrl };
   }
-  if (platform === "linkedin") return { platform, message, destination: "https://www.linkedin.com/feed/?shareActive=true", copyBeforeOpen: true, toast: "Message copied — paste it into your LinkedIn post and publish.", fallback: false };
+  if (platform === "linkedin") return { platform, message, destination: "https://www.linkedin.com/feed/?shareActive=true", copyBeforeOpen: true, toast: "Message copied — paste it into your LinkedIn post and publish.", fallback: false, shareUrl: profileUrl };
 
-  return { platform, message, destination: safeExternalUrl(details.newsletterUrl), copyBeforeOpen: true, toast: "Your share message is copied.", fallback: true };
+  return { platform, message, destination: safeExternalUrl(details.newsletterUrl), copyBeforeOpen: true, toast: "Your share message is copied.", fallback: true, shareUrl: profileUrl };
 }
 
 export const xCharacterLimit = X_CHARACTER_LIMIT;

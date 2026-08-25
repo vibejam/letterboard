@@ -10,6 +10,7 @@ const confirmRoute = await readFile(new URL("../app/api/claims/confirm/route.ts"
 const boardLib = await readFile(new URL("../lib/board.ts", import.meta.url), "utf8");
 const profileRoute = await readFile(new URL("../app/api/profiles/[slug]/route.ts", import.meta.url), "utf8");
 const adminRoute = await readFile(new URL("../app/api/admin/reviews/route.ts", import.meta.url), "utf8");
+const manualReviewMigration = await readFile(new URL("../supabase/migrations/20260825163447_founding_100_manual_review_flow.sql", import.meta.url), "utf8");
 
 const tiers = [
   { first: 1, last: 5, tier: "og", points: 1000 },
@@ -43,7 +44,8 @@ test("confirmed authority is immutable and cannot be transferred or edited", () 
   assert.match(migration, /new\.founding_position is distinct from old\.founding_position/);
   assert.match(migration, /new\.founding_tier is distinct from old\.founding_tier/);
   assert.match(migration, /new\.internal_points is distinct from old\.internal_points/);
-  assert.match(adminRoute, /confirm_claim_by_admin/);
+  assert.match(adminRoute, /review_claim_by_admin/);
+  assert.match(manualReviewMigration, /claim_founding_position/);
 });
 
 test("public responses expose founding_tier but never internal_points", () => {

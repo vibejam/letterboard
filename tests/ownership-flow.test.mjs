@@ -29,6 +29,10 @@ const qualificationMigration = await readFile(new URL("../supabase/migrations/20
 const dualVerificationMigration = await readFile(new URL("../supabase/migrations/20260825132929_dual_ownership_verification.sql", import.meta.url), "utf8");
 const inferredPlatformMigration = await readFile(new URL("../supabase/migrations/20260825140318_infer_platform_for_ownership_verification.sql", import.meta.url), "utf8");
 const platformPanel = await readFile(new URL("../app/components/PlatformVerificationPanel.tsx", import.meta.url), "utf8");
+const manualReviewMigration = await readFile(new URL("../supabase/migrations/20260825163447_founding_100_manual_review_flow.sql", import.meta.url), "utf8");
+const reviewRoute = await readFile(new URL("../app/api/admin/reviews/route.ts", import.meta.url), "utf8");
+const spreadWord = await readFile(new URL("../app/components/SpreadTheWord.tsx", import.meta.url), "utf8");
+const reportRoute = await readFile(new URL("../app/api/reports/route.ts", import.meta.url), "utf8");
 
 test("creator email is required, validated, and masked", () => {
   assert.equal(normalizeCreatorEmail(undefined), null);
@@ -373,8 +377,48 @@ test("email ownership alone cannot confirm a newsletter", () => {
   assert.doesNotMatch(dualVerificationMigration, /confirm_email_ownership[\s\S]{0,500}founding_position/);
   assert.match(confirmRoute, /confirm_email_ownership/);
   assert.doesNotMatch(confirmRoute, /rpc\("confirm_ownership"/);
+  assert.match(confirmationPage, /SpreadTheWord/);
+  assert.match(confirmationPage, /manualPlatformReview/);
+  assert.match(confirmationPage, /valueOf\(params\.review\) === "platform"/);
+  assert.doesNotMatch(confirmationPage, /status === "email_verified" \? <PlatformVerificationPanel/);
   assert.match(platformPanel, /Email confirmation proves control of the inbox only/);
   assert.match(platformPanel, /Prove you control this publication/);
+});
+
+test("email verification opens optional review, preserves pending status, and never self-confirms", () => {
+  assert.match(dualVerificationMigration, /verification_state = 'email_verified'/);
+  assert.match(spreadWord, /Spread the word/);
+  assert.match(spreadWord, /Sharing is optional/);
+  assert.match(spreadWord, /signal, not proof/);
+  assert.match(spreadWord, /Share my place/);
+  assert.match(spreadWord, /Maybe later/);
+  assert.match(spreadWord, /Return to the board/);
+  assert.match(manualReviewMigration, /create or replace function public\.review_claim_by_admin/);
+  assert.match(manualReviewMigration, /v_verification_state not in \('email_verified', 'platform_verified', 'manual_review_required'\)/);
+  assert.match(manualReviewMigration, /status = 'confirmed'/);
+  assert.match(manualReviewMigration, /verification_state = 'fully_verified'/);
+  assert.match(manualReviewMigration, /is_published\)\s*values\s*\(v_newsletter_id, v_slug, true\)/);
+  assert.match(reviewRoute, /ADMIN_REVIEW_TOKEN/);
+  assert.match(reviewRoute, /review_claim_by_admin/);
+  assert.match(reviewRoute, /maskEmail/);
+  assert.doesNotMatch(reviewRoute, /return NextResponse\.json\(\{[^}]*contact_email/);
+  assert.doesNotMatch(claimsRoute, /status:\s*["']confirmed["']/);
+});
+
+test("manual review, share signals, and public reports are audited without private fields", () => {
+  assert.match(manualReviewMigration, /admin_audit_log/);
+  assert.match(manualReviewMigration, /claim_review_approved/);
+  assert.match(manualReviewMigration, /claim_review_rejected/);
+  assert.match(manualReviewMigration, /add column if not exists share_url/);
+  assert.match(manualReviewMigration, /create table if not exists public\.public_listing_reports/);
+  assert.match(reviewRoute, /creatorShared/);
+  assert.match(reviewRoute, /shareUrl/);
+  assert.match(reviewRoute, /activity/);
+  assert.match(reportRoute, /rateLimit/);
+  assert.match(reportRoute, /public_listing_reports/);
+  assert.doesNotMatch(reportRoute, /contact_email|internal_points|token/i);
+  assert.doesNotMatch(manualReviewMigration, /delete\s+from/i);
+  assert.doesNotMatch(manualReviewMigration, /contact_email/);
 });
 
 test("platform verification methods are safe and never store raw codes", () => {

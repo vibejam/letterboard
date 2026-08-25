@@ -48,6 +48,16 @@ test("Medium uses the supported writing destination without claiming a draft was
   assert.doesNotMatch(plan.toast, /created|published/i);
 });
 
+test("pending review sharing uses truthful wording and no invented position or Founding Mark", () => {
+  const plan = buildSharePlan({ ...details, foundingPosition: null, tier: null, claimState: "pending_review", sourcePlatform: "substack" });
+  assert.equal(plan.destination, "https://substack.com/home");
+  assert.equal(plan.copyBeforeOpen, true);
+  assert.match(plan.message, /submitted Signal Letter/);
+  assert.match(plan.message, /Founding 100/);
+  assert.match(plan.message, /https:\/\/www\.letterboard\.lol\/signal-letter/);
+  assert.doesNotMatch(plan.message, /#\d|Founding Mark|joined|verified/i);
+});
+
 test("X uses an encoded web intent with the profile URL and stays within 280 characters", () => {
   const plan = buildSharePlan({ ...details, newsletterName: "A ".repeat(200), sourcePlatform: "x" });
   const intent = new URL(plan.destination);

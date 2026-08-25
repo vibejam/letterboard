@@ -7,14 +7,17 @@ import { capture } from "@/lib/posthog";
 export type ShareProfileButtonProps = {
   slug: string;
   newsletterName: string;
-  foundingPosition: number;
-  tier: PublicTier;
+  foundingPosition?: number | null;
+  tier?: PublicTier | null;
   sourcePlatform?: string | null;
   newsletterUrl?: string | null;
+  newsletterId?: string;
+  claimState?: "confirmed" | "pending_review";
   label?: string;
 };
 
 type CopyPanelState = { plan: SharePlan; text: string } | null;
+type ShareChannel = SharePlatform | "web_share";
 
 function openNewTab(value: string) {
   let url: URL;
@@ -32,7 +35,7 @@ function openNewTab(value: string) {
   anchor.click();
 }
 
-export function ShareProfileButton({ slug, newsletterName, foundingPosition, tier, sourcePlatform, newsletterUrl, label = "Share your place →" }: ShareProfileButtonProps) {
+export function ShareProfileButton({ slug, newsletterName, foundingPosition, tier, sourcePlatform, newsletterUrl, newsletterId, claimState = "confirmed", label = "Share your place →" }: ShareProfileButtonProps) {
   const [toast, setToast] = useState<string>();
   const [copyPanel, setCopyPanel] = useState<CopyPanelState>(null);
   const [chooserOpen, setChooserOpen] = useState(false);
@@ -45,7 +48,7 @@ export function ShareProfileButton({ slug, newsletterName, foundingPosition, tie
   function planForShare(platform?: SharePlatform) {
     const profileUrl = publicProfileUrl(slug);
     if (!profileUrl) throw new Error("INVALID_PROFILE_URL");
-    return buildSharePlan({ slug, newsletterName, foundingPosition, tier, sourcePlatform, newsletterUrl, profileUrl }, platform);
+    return buildSharePlan({ slug, newsletterName, foundingPosition, tier, sourcePlatform, newsletterUrl, profileUrl, claimState }, platform);
   }
 
   async function copyPlan(plan: SharePlan) {
@@ -56,6 +59,7 @@ export function ShareProfileButton({ slug, newsletterName, foundingPosition, tie
       capture("message_copied", { platform: plan.platform, outcome: "success" });
       capture("share_message_copied", { platform: plan.platform, outcome: "success" });
       capture("share_link_copied", { platform: plan.platform, outcome: "success" });
+      recordShare(plan, plan.platform === "copy" ? "copy" : plan.platform);
       return true;
     } catch {
       capture("message_copied", { platform: plan.platform, outcome: "failed" });
@@ -69,6 +73,11 @@ export function ShareProfileButton({ slug, newsletterName, foundingPosition, tie
     capture("share_started", { outcome: "chooser_opened" });
     capture("share_clicked", { outcome: "chooser_opened" });
     setChooserOpen(true);
+  }
+
+  function recordShare(plan: SharePlan, channel: ShareChannel = plan.platform) {
+    if (!newsletterId) return;
+    void fetch("/api/track/share", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ newsletterId, channel, shareUrl: plan.shareUrl }) }).catch(() => undefined);
   }
 
   async function selectPlatform(platform: SharePlatform) {
@@ -87,6 +96,7 @@ export function ShareProfileButton({ slug, newsletterName, foundingPosition, tie
       if (navigator.share) {
         try {
           await navigator.share({ title: newsletterName, text: plan.message, url: publicProfileUrl(slug) ?? undefined });
+          recordShare(plan, "web_share");
           capture("share_composer_opened", { platform: plan.platform, outcome: "opened" });
           showToast(plan.toast);
           return;
@@ -100,6 +110,7 @@ export function ShareProfileButton({ slug, newsletterName, foundingPosition, tie
     if (plan.platform === "x") {
       if (plan.destination) {
         openNewTab(plan.destination);
+        recordShare(plan, "x");
         capture("composer_opened", { platform: plan.platform, outcome: "opened" });
         capture("share_composer_opened", { platform: plan.platform, outcome: "opened" });
       }
@@ -111,6 +122,7 @@ export function ShareProfileButton({ slug, newsletterName, foundingPosition, tie
     if (!copied) return;
     if (plan.destination) {
       openNewTab(plan.destination);
+      recordShare(plan, plan.platform);
       capture("composer_opened", { platform: plan.platform, outcome: "opened" });
       capture("share_composer_opened", { platform: plan.platform, outcome: "opened" });
     }
@@ -127,9 +139,11 @@ export function ShareProfileButton({ slug, newsletterName, foundingPosition, tie
       capture("message_copied", { platform: plan.platform, outcome: "success", retry: true });
       capture("share_message_copied", { platform: plan.platform, outcome: "success", retry: true });
       capture("share_link_copied", { platform: plan.platform, outcome: "success", retry: true });
+      recordShare(plan, plan.platform === "copy" ? "copy" : plan.platform);
       setCopyPanel(null);
       if (plan.destination) {
         openNewTab(plan.destination);
+        recordShare(plan, plan.platform);
         capture("composer_opened", { platform: plan.platform, outcome: "opened", retry: true });
         capture("share_composer_opened", { platform: plan.platform, outcome: "opened", retry: true });
       }
