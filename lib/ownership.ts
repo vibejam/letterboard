@@ -13,6 +13,11 @@ export function normalizeCreatorEmail(value: unknown) {
   return EMAIL_PATTERN.test(email) && email.length <= 320 ? email : null;
 }
 
+export function creatorIdentityHash(value: unknown) {
+  const email = normalizeCreatorEmail(value);
+  return email ? createHash("sha256").update(email).digest("hex") : null;
+}
+
 export function maskEmail(email: string) {
   const [local, domain] = email.split("@");
   if (!local || !domain) return "•••";

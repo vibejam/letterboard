@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { rateLimit } from "@/lib/rateLimit";
+import { safeExternalUrl } from "@/lib/urls";
 
 export const runtime = "nodejs";
 
@@ -31,16 +32,19 @@ export async function GET(request: Request) {
   if (confirmed.error || !confirmed.data?.[0]) {
     const message = confirmed.error?.message ?? "CONFIRMATION_FAILED";
     if (message.includes("FOUNDING_100_FULL")) return confirmationRedirect(request, { error: "FOUNDING_100_FULL" });
+    if (message.includes("CREATOR_BANNED")) return confirmationRedirect(request, { error: "CREATOR_BANNED" });
     if (message.includes("INVALID_VERIFICATION")) return confirmationRedirect(request, { error: "EXPIRED_VERIFICATION" });
     return confirmationRedirect(request, { error: "CONFIRMATION_FAILED" });
   }
   const result = confirmed.data[0];
-  const profile = await supabase.from("newsletters").select("title").eq("slug", result.profile_slug).maybeSingle();
+  const profile = await supabase.from("newsletters").select("title,canonical_url,source_platform").eq("slug", result.profile_slug).maybeSingle();
   return confirmationRedirect(request, {
     status: "confirmed",
     position: String(result.founding_position),
     tier: String(result.founding_tier).toLowerCase(),
     slug: result.profile_slug,
     ...(profile.data?.title ? { title: profile.data.title } : {}),
+    ...(profile.data?.source_platform ? { sourcePlatform: profile.data.source_platform } : {}),
+    ...(safeExternalUrl(profile.data?.canonical_url) ? { newsletterUrl: safeExternalUrl(profile.data?.canonical_url)! } : {}),
   });
 }

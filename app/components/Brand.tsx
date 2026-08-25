@@ -1,5 +1,11 @@
 type BrandProps = { compact?: boolean };
 
+export function NewsletterLogo({ src, alt, initials, tone = "paper" }: { src?: string | null; alt: string; initials: string; tone?: string }) {
+  // Resolved logo URLs are persisted only after server-side validation; the native image keeps arbitrary verified hosts out of next.config.
+  // eslint-disable-next-line @next/next/no-img-element
+  return src ? <img className="newsletter-logo" src={src} alt={alt} width={72} height={72} loading="lazy" referrerPolicy="no-referrer" /> : <span className={`newsletter-logo newsletter-logo--fallback avatar--${tone}`} aria-label={alt}>{initials}</span>;
+}
+
 export function LetterboardMark({ compact = false }: BrandProps) {
   return (
     <svg aria-hidden="true" className={compact ? "brand-mark brand-mark--compact" : "brand-mark"} viewBox="0 0 52 52" role="img">

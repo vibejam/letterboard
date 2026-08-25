@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { createOpaqueToken, maskEmail, normalizeCreatorEmail, sendOwnershipEmail } from "../lib/ownership.ts";
+import { createOpaqueToken, creatorIdentityHash, maskEmail, normalizeCreatorEmail, sendOwnershipEmail } from "../lib/ownership.ts";
+import { extractLogoCandidates, resolvePublicMetadata } from "../lib/metadata.ts";
+import { normalizeNewsletterUrl, safeExternalUrl } from "../lib/urls.ts";
 
 const claimsRoute = await readFile(new URL("../app/api/claims/route.ts", import.meta.url), "utf8");
 const confirmRoute = await readFile(new URL("../app/api/claims/confirm/route.ts", import.meta.url), "utf8");
@@ -9,6 +11,7 @@ const resendRoute = await readFile(new URL("../app/api/claims/resend/route.ts", 
 const ownership = await readFile(new URL("../lib/ownership.ts", import.meta.url), "utf8");
 const claimFlow = await readFile(new URL("../app/components/ClaimFlow.tsx", import.meta.url), "utf8");
 const repairRoute = await readFile(new URL("../app/api/admin/claims/repair/route.ts", import.meta.url), "utf8");
+const banRoute = await readFile(new URL("../app/api/admin/creators/ban/route.ts", import.meta.url), "utf8");
 const boardRoute = await readFile(new URL("../app/api/board/route.ts", import.meta.url), "utf8");
 const boardLib = await readFile(new URL("../lib/board.ts", import.meta.url), "utf8");
 const profileRoute = await readFile(new URL("../app/api/profiles/[slug]/route.ts", import.meta.url), "utf8");
@@ -19,12 +22,50 @@ const boardmark = await readFile(new URL("../app/components/Boardmark.tsx", impo
 const confirmationPage = await readFile(new URL("../app/confirmation/page.tsx", import.meta.url), "utf8");
 const publicProfilePage = await readFile(new URL("../app/[slug]/page.tsx", import.meta.url), "utf8");
 const migration = await readFile(new URL("../supabase/migrations/20260823120000_ownership_confirmation_transaction.sql", import.meta.url), "utf8");
+const hardeningMigration = await readFile(new URL("../supabase/migrations/20260824192622_creator_identity_bans_and_logo_source.sql", import.meta.url), "utf8");
 
 test("creator email is required, validated, and masked", () => {
   assert.equal(normalizeCreatorEmail(undefined), null);
   assert.equal(normalizeCreatorEmail("not-an-email"), null);
   assert.equal(normalizeCreatorEmail(" Creator@Example.COM "), "creator@example.com");
   assert.equal(maskEmail("creator@example.com"), "c•••@example.com");
+  assert.equal(creatorIdentityHash(" Creator@Example.COM "), creatorIdentityHash("creator@example.com"));
+  assert.equal(creatorIdentityHash("not-an-email"), null);
+});
+
+test("publication normalization collapses equivalent platform URLs and external links stay HTTPS", () => {
+  assert.equal(normalizeNewsletterUrl("https://www.samurai828.substack.com/p/build-the-smallest-honest-signal?utm_source=x").normalizedUrl, "samurai828.substack.com/");
+  assert.equal(normalizeNewsletterUrl("https://samurai828.substack.com/").normalizedUrl, "samurai828.substack.com/");
+  assert.equal(safeExternalUrl("https://newsletter.example.com/read"), "https://newsletter.example.com/read");
+  assert.equal(safeExternalUrl("http://newsletter.example.com/read"), null);
+});
+
+test("logo extraction prioritizes the approved source order and supports custom Substack platform metadata", () => {
+  const html = `<meta property="og:image" content="https://cdn.example/og.png"><meta name="twitter:image" content="https://cdn.example/twitter.png"><link rel="icon" href="/favicon.png"><link rel="apple-touch-icon" href="/apple.png"><script type="application/ld+json">{"publisher":{"logo":{"url":"https://cdn.example/jsonld.png"}}}</script><meta name="substack:logo" content="https://cdn.example/letterboard-l.png">`;
+  const candidates = extractLogoCandidates(html);
+  assert.deepEqual(candidates.map((candidate) => candidate.source), ["og:image", "twitter:image", "favicon", "apple-touch-icon", "json-ld", "platform"]);
+  assert.equal(candidates.at(-1)?.url, "https://cdn.example/letterboard-l.png");
+});
+
+test("server resolver selects a valid uploaded Substack logo when higher-priority sources are absent", async () => {
+  const previousFetch = globalThis.fetch;
+  const html = `<html><head><title>Signal Letter</title><meta name="substack:logo" content="/letterboard-l.svg"></head></html>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="96" viewBox="0 0 320 96"><path d="M16 12v72h38" /></svg>`;
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url === "https://example.com/") return new Response(html, { status: 200, headers: { "content-type": "text/html" } });
+    if (url === "https://example.com/letterboard-l.svg") return new Response(svg, { status: 200, headers: { "content-type": "image/svg+xml", "content-length": String(Buffer.byteLength(svg)) } });
+    throw new Error(`unexpected test URL: ${url}`);
+  };
+  try {
+    const result = await resolvePublicMetadata("https://example.com/");
+    assert.equal(result.logoUrl, "https://example.com/letterboard-l.svg");
+    assert.equal(result.logoSource, "platform");
+    assert.equal(result.logoWidth, 320);
+    assert.equal(result.logoHeight, 96);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
 });
 
 test("verification token is opaque and persisted only as a hash", () => {
@@ -84,6 +125,10 @@ test("routes enforce explicit email, resend rate limiting, and transactional con
   assert.match(claimsRoute, /emailStatus: email\.ok \? "sent"/);
   assert.match(claimsRoute, /RESEND_CONFIG_MISSING/);
   assert.match(claimsRoute, /email\.reason/);
+  assert.match(claimsRoute, /resolvePublicMetadata/);
+  assert.match(claimsRoute, /normalizeNewsletterUrl/);
+  assert.match(claimsRoute, /p_logo_url: n\.logoUrl/);
+  assert.doesNotMatch(claimsRoute, /p_logo_url: body\.newsletter/);
   assert.match(claimsRoute, /\.eq\("status", "pending"\)/);
   assert.match(claimsRoute, /claim: \{/);
   assert.match(resendRoute, /resend-confirmation/);
@@ -115,6 +160,9 @@ test("admin repair is restricted, non-duplicating, and preserves founding author
   assert.match(repairRoute, /newsletter\.ownership_status !== "pending"/);
   assert.match(repairRoute, /newsletter\.boardmark_status !== "pending"/);
   assert.match(repairRoute, /contact_email/);
+  assert.match(repairRoute, /attach_claim_creator_identity/);
+  assert.match(repairRoute, /creatorIdentityHash/);
+  assert.match(repairRoute, /CREATOR_BANNED/);
   assert.doesNotMatch(repairRoute, /CLAIM_EMAIL_MISSING/);
   assert.match(repairRoute, /CLAIM_EMAIL_MISMATCH/);
   assert.match(repairRoute, /used_at: new Date\(\)\.toISOString\(\)/);
@@ -143,6 +191,8 @@ test("confirmation redirects to branded UI and removes the token from the visibl
   assert.match(confirmationPage, /You are confirmed as \{confirmationSummary\} on Letterboard\./);
   assert.match(confirmationPage, /FOUNDING STATUS CONFIRMED/);
   assert.match(confirmationPage, /View my public profile/);
+  assert.match(confirmationPage, /Open newsletter/);
+  assert.match(confirmationPage, /safeExternalUrl/);
   assert.match(confirmationPage, /ShareProfileButton/);
   assert.match(confirmationPage, /Return to the board/);
   assert.match(confirmationPage, /This confirmation link is no longer valid/);
@@ -211,20 +261,61 @@ test("confirmed profiles flow from the transaction into the live board and publi
 });
 
 test("legacy pending claims backfill a missing email without creating a claim", () => {
-  assert.match(repairRoute, /let storedContactEmail = claim\.contact_email/);
-  assert.match(repairRoute, /update\(\{ contact_email: creatorEmail \}\)/);
-  assert.match(repairRoute, /\.eq\("status", "pending"\)\.is\("contact_email", null\)/);
-  assert.match(repairRoute, /storedContactEmail = backfilled\.data\.contact_email/);
+  assert.match(repairRoute, /attach_claim_creator_identity/);
+  assert.match(hardeningMigration, /coalesce\(contact_email, p_contact_email\)/);
+  assert.match(hardeningMigration, /p_identity_hash/);
   assert.match(repairRoute, /sendOwnershipEmail/);
   assert.doesNotMatch(repairRoute, /from\("claims"\)\.insert/);
 });
 
 test("legacy repair protects existing emails, reports provider failure, and does not leak tokens", () => {
-  assert.match(repairRoute, /claim_email_backfill_failed/);
-  assert.match(repairRoute, /claim_email_backfill_conflict/);
-  assert.match(repairRoute, /normalizeCreatorEmail\(storedContactEmail\) !== creatorEmail/);
+  assert.match(repairRoute, /CLAIM_EMAIL_MISMATCH/);
+  assert.match(hardeningMigration, /CLAIM_EMAIL_MISMATCH/);
   assert.match(repairRoute, /email\.reason/);
   assert.match(repairRoute, /providerCalled: true/);
   assert.doesNotMatch(repairRoute, /console\.(info|warn|error)\([^\n]*rawToken/);
   assert.doesNotMatch(repairRoute, /console\.(info|warn|error)\([^\n]*(creatorEmail|contact_email)/);
+});
+
+test("one creator, duplicate publication, and permanent ban safeguards are database-backed", () => {
+  assert.match(hardeningMigration, /create extension if not exists pgcrypto with schema extensions/);
+  assert.match(hardeningMigration, /extensions\.digest\(lower\(trim\(contact_email\)\)::text, 'sha256'::text\)/);
+  assert.match(hardeningMigration, /extensions\.digest\(lower\(trim\(c\.contact_email\)\)::text, 'sha256'::text\)/);
+  assert.doesNotMatch(hardeningMigration, /(?<!extensions\.)digest\(/);
+  assert.match(hardeningMigration, /creator_identities/);
+  assert.match(hardeningMigration, /identity_hash text not null unique/);
+  assert.match(hardeningMigration, /claims_one_active_creator_idx/);
+  assert.match(hardeningMigration, /status in \('pending', 'confirmed'\)/);
+  assert.match(hardeningMigration, /create_pending_claim/);
+  assert.match(hardeningMigration, /PUBLICATION_ALREADY_CLAIMED/);
+  assert.match(hardeningMigration, /CREATOR_ALREADY_CLAIMED/);
+  assert.match(hardeningMigration, /creator_bans/);
+  assert.match(hardeningMigration, /ban_creator/);
+  assert.match(hardeningMigration, /CREATOR_BANNED/);
+  assert.match(hardeningMigration, /admin_audit_log/);
+  assert.match(banRoute, /ADMIN_REVIEW_TOKEN/);
+  assert.match(banRoute, /authorization/);
+  assert.match(banRoute, /creatorIdentityHash/);
+  assert.match(banRoute, /ban_creator/);
+  assert.doesNotMatch(banRoute, /console\.(info|warn|error)/);
+});
+
+test("live board reconciliation refreshes without a manual reload", () => {
+  assert.match(homeClient, /setInterval\(refreshBoard, 10_000\)/);
+  assert.match(homeClient, /visibilitychange/);
+  assert.match(homeClient, /router\.refresh\(\)/);
+  assert.match(homeClient, /claimTarget/);
+  assert.match(claimFlow, /liveNewsletter/);
+  assert.match(claimFlow, /onClaimCreated/);
+  assert.match(claimFlow, /setStatus\("confirmed"\)/);
+});
+
+test("public profile is branded, private-safe, and links externally", () => {
+  assert.match(publicProfilePage, /NewsletterLogo/);
+  assert.match(publicProfilePage, /Read newsletter/);
+  assert.match(publicProfilePage, /target="_blank"/);
+  assert.match(publicProfilePage, /noopener noreferrer/);
+  assert.match(publicProfilePage, /ShareCard/);
+  assert.match(publicProfilePage, /profile_views/);
+  assert.doesNotMatch(publicProfilePage, /contact_email|internal_points|creator_identity_hash/);
 });

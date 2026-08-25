@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -12,12 +13,16 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   if (!authorized(request)) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
   const supabase = getSupabaseAdmin(); if (!supabase) return NextResponse.json({ error: "BACKEND_NOT_CONFIGURED" }, { status: 503 });
+  const requestId = randomUUID();
   const body = await request.json() as { claimId?: string; decision?: "approve" | "reject" };
   if (!body.claimId || !body.decision) return NextResponse.json({ error: "INVALID_REVIEW" }, { status: 400 });
+  const current = await supabase.from("claims").select("id,status,newsletter_id").eq("id", body.claimId).maybeSingle();
+  if (current.error || !current.data) return NextResponse.json({ error: "CLAIM_NOT_ELIGIBLE" }, { status: 409 });
+  if (current.data.status !== "pending") return NextResponse.json({ error: "CLAIM_NOT_ELIGIBLE" }, { status: 409 });
   if (body.decision === "approve") {
     const confirmed = await supabase.rpc("confirm_claim_by_admin", { p_claim_id: body.claimId });
     if (confirmed.error || !confirmed.data?.[0]) return NextResponse.json({ error: "REVIEW_FAILED" }, { status: 409 });
-    await supabase.from("admin_audit_log").insert({ action: "claim_approve", target_id: body.claimId, metadata: { foundingPosition: confirmed.data[0].founding_position, foundingTier: confirmed.data[0].founding_tier } });
+    await supabase.from("admin_audit_log").insert({ action: "claim_approve", target_id: body.claimId, metadata: { requestId, foundingPosition: confirmed.data[0].founding_position, foundingTier: confirmed.data[0].founding_tier } });
     return NextResponse.json({ ok: true, foundingPosition: confirmed.data[0].founding_position, foundingTier: confirmed.data[0].founding_tier });
   }
   const claim = await supabase.from("claims").update({ status: "rejected" }).eq("id", body.claimId).select("newsletter_id").single();
@@ -27,6 +32,6 @@ export async function POST(request: Request) {
     await supabase.from("ownership_verifications").update({ used_at: new Date().toISOString() }).eq("claim_id", body.claimId).is("used_at", null);
     await supabase.from("public_profiles").update({ is_published: false }).eq("newsletter_id", claim.data.newsletter_id);
   }
-  await supabase.from("admin_audit_log").insert({ action: `claim_${body.decision}`, target_id: claim.data.newsletter_id, metadata: { claimId: body.claimId } });
+  await supabase.from("admin_audit_log").insert({ action: `claim_${body.decision}`, target_id: claim.data.newsletter_id, metadata: { requestId, claimId: body.claimId } });
   return NextResponse.json({ ok: true });
 }

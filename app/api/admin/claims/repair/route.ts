@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { rateLimit } from "@/lib/rateLimit";
-import { createOpaqueToken, maskEmail, normalizeCreatorEmail, sendOwnershipEmail } from "@/lib/ownership";
+import { createOpaqueToken, creatorIdentityHash, maskEmail, normalizeCreatorEmail, sendOwnershipEmail } from "@/lib/ownership";
 
 export const runtime = "nodejs";
 
@@ -20,6 +20,11 @@ function senderDomain() {
   const from = process.env.OWNERSHIP_EMAIL_FROM;
   const domain = from?.match(/<\s*[^@<>\s]+@([^<>\s]+)\s*>/)?.[1] ?? from?.match(/[^@\s]+@([^\s>]+)/)?.[1];
   return domain?.toLowerCase() ?? "unknown";
+}
+
+function repairErrorCode(error: unknown) {
+  const message = error && typeof error === "object" && "message" in error && typeof error.message === "string" ? error.message : "";
+  return /CREATOR_BANNED|CREATOR_ALREADY_CLAIMED|CLAIM_EMAIL_MISMATCH|CLAIM_NOT_RESENDABLE/.exec(message)?.[0] ?? "CLAIM_REPAIR_FAILED";
 }
 
 async function auditRepair(supabase: NonNullable<ReturnType<typeof getSupabaseAdmin>>, requestId: string, claimId: string, metadata: Record<string, unknown>) {
@@ -53,22 +58,13 @@ export async function POST(request: Request) {
     await auditRepair(supabase, requestId, claimId, { ...baseAudit, outcome: "claim_not_resendable" });
     return NextResponse.json({ error: "CLAIM_NOT_RESENDABLE" }, { status: 409 });
   }
-  let storedContactEmail = claim.contact_email;
-  if (!storedContactEmail) {
-    const backfilled = await supabase.from("claims").update({ contact_email: creatorEmail }).eq("id", claimId).eq("status", "pending").is("contact_email", null).select("id,contact_email").maybeSingle();
-    if (backfilled.error) {
-      await auditRepair(supabase, requestId, claimId, { ...baseAudit, outcome: "claim_email_backfill_failed" });
-      return NextResponse.json({ error: "CLAIM_REPAIR_FAILED" }, { status: 502 });
-    }
-    if (!backfilled.data?.contact_email) {
-      await auditRepair(supabase, requestId, claimId, { ...baseAudit, outcome: "claim_email_backfill_conflict" });
-      return NextResponse.json({ error: "CLAIM_EMAIL_MISMATCH" }, { status: 409 });
-    }
-    storedContactEmail = backfilled.data.contact_email;
-  }
-  if (normalizeCreatorEmail(storedContactEmail) !== creatorEmail) {
-    await auditRepair(supabase, requestId, claimId, { ...baseAudit, outcome: "claim_email_mismatch" });
-    return NextResponse.json({ error: "CLAIM_EMAIL_MISMATCH" }, { status: 403 });
+  const identityHash = creatorIdentityHash(creatorEmail);
+  if (!identityHash) return NextResponse.json({ error: "CLAIM_REPAIR_INPUT_INVALID" }, { status: 400 });
+  const attached = await supabase.rpc("attach_claim_creator_identity", { p_claim_id: claimId, p_contact_email: creatorEmail, p_identity_hash: identityHash });
+  if (attached.error || !attached.data?.[0]) {
+    const error = repairErrorCode(attached.error);
+    await auditRepair(supabase, requestId, claimId, { ...baseAudit, outcome: error.toLowerCase() });
+    return NextResponse.json({ error }, { status: error === "CREATOR_BANNED" ? 403 : error === "CLAIM_EMAIL_MISMATCH" ? 403 : 409 });
   }
 
   const revoked = await supabase.from("ownership_verifications").update({ used_at: new Date().toISOString() }).eq("claim_id", claimId).is("used_at", null);

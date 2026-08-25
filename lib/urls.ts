@@ -7,8 +7,23 @@ export function normalizeNewsletterUrl(input: string) {
   url.hash = '';
   [...url.searchParams.keys()].forEach((key) => tracking.test(key) && url.searchParams.delete(key));
   const host = url.hostname.toLowerCase().replace(/^www\./, '');
-  const path = url.pathname.replace(/\/+$/, '') || '/';
-  return { canonicalUrl: `${url.protocol}//${host}${path}${url.search}`, normalizedUrl: `${host}${path}${url.search}` };
+  const isSubstack = host.endsWith('.substack.com') || host === 'substack.com';
+  const isBeehiiv = host.endsWith('.beehiiv.com');
+  const path = (isSubstack || isBeehiiv)
+    ? '/'
+    : url.pathname.replace(/\/+$/, '') || '/';
+  const query = isSubstack || isBeehiiv ? '' : url.search;
+  return { canonicalUrl: `https://${host}${path}${query}`, normalizedUrl: `${host}${path}${query}` };
+}
+
+export function safeExternalUrl(value: string | null | undefined) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 export function safeSlug(title: string, normalizedUrl: string) {

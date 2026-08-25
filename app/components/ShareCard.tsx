@@ -1,8 +1,10 @@
 import type { NewsletterStatus } from "../data/mock";
-import { Avatar, Boardmark, type BoardmarkTier } from "./Boardmark";
+import { Boardmark, type BoardmarkTier } from "./Boardmark";
+import { NewsletterLogo } from "./Brand";
+import { ShareProfileButton, type ShareProfileButtonProps } from "./ShareProfileButton";
 
-type ShareCardProps = { name: string; url: string; category: string; description: string; rank: number; status: NewsletterStatus; initials: string; tone: string; tier?: BoardmarkTier };
+type ShareCardProps = { name: string; url: string; category: string; description: string; rank: number; status: NewsletterStatus; initials: string; tone: string; logoUrl?: string; tier?: BoardmarkTier; share?: ShareProfileButtonProps };
 
-export function ShareCard({ name, url, category, description, rank, status, initials, tone, tier }: ShareCardProps) {
-  return <div className="share-card" data-status={status}><div className="share-card__topline"><span>LETTERBOARD</span><span>FOUNDING 100</span></div><div className="share-card__mark"><Avatar initials={initials} tone={tone} /><span className="share-card__index">{String(rank).padStart(2, "0")} / 100</span></div><h3>{name}</h3><p>{description}</p><div className="share-card__bottom"><span>{category}</span><Boardmark status={status} tier={tier} size="small" /></div><div className="share-card__url">letterboard.lol/{url.replace(/^www\./, "").split(".")[0]}</div></div>;
+export function ShareCard({ name, url, category, description, rank, status, initials, tone, logoUrl, tier, share }: ShareCardProps) {
+  return <div className="share-card" data-status={status}><div className="share-card__topline"><span>LETTERBOARD</span><span>FOUNDING 100</span></div><div className="share-card__mark"><NewsletterLogo src={logoUrl} alt={`${name} logo`} initials={initials} tone={tone} /><span className="share-card__index">{String(rank).padStart(2, "0")} / 100</span></div><h3>{name}</h3><p>{description}</p><div className="share-card__bottom"><span>{category}</span><Boardmark status={status} tier={tier} size="small" /></div><div className="share-card__url">letterboard.lol/{url.replace(/^www\./, "").split(".")[0]}</div>{share ? <div className="share-card__action"><ShareProfileButton {...share} label="Share this place →" /></div> : null}</div>;
 }

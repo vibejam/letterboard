@@ -1,0 +1,11 @@
+{
+  "component": "Boardmark",
+  "viewBox": { "width": 320, "height": 96 },
+  "tiers": {
+    "og": { "label": "OG", "rank": "Top 5", "internalPoints": 1000, "accent": "#83C51E", "surface": "#080808", "foreground": "#F8F7F2", "border": "#F8F7F2", "dark": true },
+    "legend": { "label": "LEGEND", "rank": "Top 6–10", "internalPoints": 500, "accent": "#1675C9", "surface": "#FAF9F5", "foreground": "#151515", "border": "#18366F", "dark": false },
+    "icon": { "label": "ICON", "rank": "Top 11–50", "internalPoints": 250, "accent": "#8750B5", "surface": "#FAF9F5", "foreground": "#151515", "border": "#51406F", "dark": false },
+    "pioneer": { "label": "PIONEER", "rank": "Top 51–100", "internalPoints": 100, "accent": "#D28B18", "surface": "#FAF9F5", "foreground": "#151515", "border": "#C88616", "dark": false }
+  },
+  "invariants": ["width", "height", "outerRadius", "innerGeometry", "wordmarkBaseline", "iconAlignment"]
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ClaimFlow } from "./ClaimFlow";
 import { LetterboardMark, Wordmark } from "./Brand";
 import { ActivityPanel, Leaderboard } from "./Leaderboard";
@@ -9,17 +10,29 @@ import { defaultBoardViewData, mapBoardActivity, mapBoardRow, type BoardViewData
 export default function HomeClient({ initialBoard }: { initialBoard: BoardViewData }) {
   const [claimOpen, setClaimOpen] = useState(false);
   const [selectedNewsletter, setSelectedNewsletter] = useState<Newsletter | undefined>();
+  const [claimTarget, setClaimTarget] = useState<Newsletter | undefined>();
   const [board, setBoard] = useState<BoardViewData>(initialBoard ?? defaultBoardViewData);
+  const router = useRouter();
   useEffect(() => {
     let active = true;
-    fetch("/api/board", { cache: "no-store" }).then(async (response) => {
-      if (!response.ok) throw new Error("BOARD_UNAVAILABLE");
-      const result = await response.json() as { stats: BoardViewData["stats"]; top: Parameters<typeof mapBoardRow>[0][]; rows: Parameters<typeof mapBoardRow>[0][]; activity: Parameters<typeof mapBoardActivity>[0][] };
-      if (active) setBoard({ stats: result.stats, leaderboard: [...result.top, ...result.rows].map(mapBoardRow), activity: result.activity.map(mapBoardActivity) });
-    }).catch(() => undefined);
-    return () => { active = false; };
-  }, []);
+    async function refreshBoard() {
+      try {
+        const response = await fetch("/api/board", { cache: "no-store" });
+        if (!response.ok) throw new Error("BOARD_UNAVAILABLE");
+        const result = await response.json() as { stats: BoardViewData["stats"]; top: Parameters<typeof mapBoardRow>[0][]; rows: Parameters<typeof mapBoardRow>[0][]; activity: Parameters<typeof mapBoardActivity>[0][] };
+        if (active) setBoard({ stats: result.stats, leaderboard: [...result.top, ...result.rows].map(mapBoardRow), activity: result.activity.map(mapBoardActivity) });
+      } catch { /* live board refresh is best effort */ }
+    }
+    void refreshBoard();
+    const interval = window.setInterval(refreshBoard, 10_000);
+    const onFocus = () => { void refreshBoard(); router.refresh(); };
+    const onVisibility = () => { if (document.visibilityState === "visible") onFocus(); };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => { active = false; window.clearInterval(interval); window.removeEventListener("focus", onFocus); document.removeEventListener("visibilitychange", onVisibility); };
+  }, [router]);
   function openClaim(newsletter?: Newsletter) { setSelectedNewsletter(newsletter); setClaimOpen(true); }
+  const liveNewsletter = (selectedNewsletter ?? claimTarget) ? board.leaderboard.find((item) => item.url === (selectedNewsletter ?? claimTarget)?.url || item.name === (selectedNewsletter ?? claimTarget)?.name) : undefined;
 
   return <main className="site-shell">
     <header className="site-header"><a className="brand-link" href="#top" aria-label="Letterboard home"><Wordmark /></a><nav className="site-nav" aria-label="Primary navigation"><a className="site-nav__active" href="#board">Leaderboard</a><a href="#how-it-works">How it works</a></nav><button className="header-cta" onClick={() => openClaim()}>Claim your spot <span>→</span></button></header>
@@ -30,6 +43,6 @@ export default function HomeClient({ initialBoard }: { initialBoard: BoardViewDa
     <section className="board-intro-strip"><div><strong>Founding 100</strong><span>The first 100 verified newsletters become permanent founding members of Letterboard.</span></div><div><strong>{board.stats.claimed} / 100</strong><span>Founding spots claimed</span></div><div><strong>NEXT → SPOTLIGHT</strong><span>After the Founding 100 closes, Spotlight opens for featured visibility without changing organic founding status.</span></div></section>
     <section className="how-section" id="how-it-works"><div><p className="eyebrow">HOW THE BOARD WORKS</p><h2>Simple in. Visible out.</h2></div><div className="how-grid"><article><span>01</span><h3>Paste your newsletter</h3><p>Drop in your URL. Letterboard builds the public profile.</p></article><article><span>02</span><h3>Prove it’s yours</h3><p>Confirm by email to secure your position and Founding Mark.</p></article><article><span>03</span><h3>Get on the board</h3><p>Your newsletter goes live, gets discovered and starts building its place in the ranking.</p></article></div></section>
     <footer className="site-footer"><div className="site-footer__brand"><LetterboardMark /><div><strong>LETTERBOARD</strong><span>The live board for newsletters worth discovering.</span></div></div><div className="site-footer__tagline">Get on the board. Move up the board. Own the inbox.</div><div className="site-footer__meta"><span>© 2026 Letterboard</span><button onClick={() => openClaim()}>Claim your spot <span>→</span></button></div></footer>
-    <ClaimFlow key={`${claimOpen}-${selectedNewsletter?.id ?? "new"}`} open={claimOpen} onClose={() => { setClaimOpen(false); setSelectedNewsletter(undefined); }} initialNewsletter={selectedNewsletter} boardStatsOverride={board.stats} />
+    <ClaimFlow key={`${claimOpen}-${selectedNewsletter?.id ?? "new"}`} open={claimOpen} onClose={() => { setClaimOpen(false); setSelectedNewsletter(undefined); setClaimTarget(undefined); }} onClaimCreated={setClaimTarget} initialNewsletter={selectedNewsletter} liveNewsletter={liveNewsletter} boardStatsOverride={board.stats} />
   </main>;
 }
