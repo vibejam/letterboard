@@ -24,6 +24,7 @@ const confirmationPage = await readFile(new URL("../app/confirmation/page.tsx", 
 const publicProfilePage = await readFile(new URL("../app/[slug]/page.tsx", import.meta.url), "utf8");
 const migration = await readFile(new URL("../supabase/migrations/20260823120000_ownership_confirmation_transaction.sql", import.meta.url), "utf8");
 const hardeningMigration = await readFile(new URL("../supabase/migrations/20260824192622_creator_identity_bans_and_logo_source.sql", import.meta.url), "utf8");
+const retryMigration = await readFile(new URL("../supabase/migrations/20260825145156_allow_rejected_publication_retry.sql", import.meta.url), "utf8");
 const dualVerificationMigration = await readFile(new URL("../supabase/migrations/20260825132929_dual_ownership_verification.sql", import.meta.url), "utf8");
 const inferredPlatformMigration = await readFile(new URL("../supabase/migrations/20260825140318_infer_platform_for_ownership_verification.sql", import.meta.url), "utf8");
 const platformPanel = await readFile(new URL("../app/components/PlatformVerificationPanel.tsx", import.meta.url), "utf8");
@@ -140,8 +141,11 @@ test("routes enforce explicit email, resend rate limiting, and transactional con
   assert.match(claimsRoute, /normalizeNewsletterUrl/);
   assert.match(claimsRoute, /p_logo_url: n\.logoUrl/);
   assert.doesNotMatch(claimsRoute, /p_logo_url: body\.newsletter/);
-  assert.match(claimsRoute, /\.eq\("status", "pending"\)/);
-  assert.match(claimsRoute, /claim: \{/);
+  assert.match(claimsRoute, /\.in\("status", \["pending", "confirmed"\]\)/);
+  assert.match(claimsRoute, /existing\.data\.ownership_status === "confirmed"/);
+  assert.match(claimsRoute, /existing\.data\.canonical_url !== normalizedInput\.canonicalUrl/);
+  assert.doesNotMatch(claimsRoute, /select\("id,contact_email"/);
+  assert.match(claimsRoute, /\{ claim: claimResponse \}/);
   assert.match(resendRoute, /resend-confirmation/);
   assert.match(resendRoute, /CLAIM_NOT_RESENDABLE/);
   assert.match(resendRoute, /email\.reason/);
@@ -158,7 +162,9 @@ test("resend uses the server-side Resend SDK and safe provider diagnostics", () 
   assert.match(ownership, /resend\.emails\.send/);
   assert.match(ownership, /from,\s*to: \[recipient\]/s);
   assert.match(ownership, /providerCalled/);
-  assert.match(ownership, /senderDomain/);
+  assert.match(ownership, /providerCalled/);
+  assert.doesNotMatch(ownership, /recipientDomain|senderDomain/);
+  assert.doesNotMatch(ownership, /console\.info\("ownership email",\s*\{[^}]*errorMessage/);
   assert.doesNotMatch(ownership, /api\.resend\.com\/emails/);
 });
 
@@ -310,6 +316,29 @@ test("one creator, duplicate publication, and permanent ban safeguards are datab
   assert.match(banRoute, /creatorIdentityHash/);
   assert.match(banRoute, /ban_creator/);
   assert.doesNotMatch(banRoute, /console\.(info|warn|error)/);
+});
+
+test("rejected publication retry is transactional, idempotent, and preserves private history", () => {
+  assert.match(retryMigration, /pg_advisory_xact_lock\(hashtext\('letterboard-claim:'/);
+  assert.match(retryMigration, /for update;/);
+  assert.match(retryMigration, /status in \('pending', 'confirmed'\)/);
+  assert.match(retryMigration, /ownership_status = 'confirmed'/);
+  assert.match(retryMigration, /ownership_status not in \('pending', 'rejected'\)/);
+  assert.match(retryMigration, /ownership_status = 'pending'/);
+  assert.match(retryMigration, /founding_position = null/);
+  assert.match(retryMigration, /founding_tier = null/);
+  assert.match(retryMigration, /internal_points = null/);
+  assert.match(retryMigration, /is_published = false/);
+  assert.match(retryMigration, /insert into public\.claims/);
+  assert.doesNotMatch(retryMigration, /delete\s+from/i);
+  assert.doesNotMatch(retryMigration, /confirmed_at\s*=/);
+  assert.doesNotMatch(retryMigration, /claimed_at\s*=/);
+  assert.match(claimsRoute, /emailStatus: email\.ok \? "sent"/);
+  assert.match(claimFlow, /if \(!response\.ok\)/);
+  assert.match(claimFlow, /We couldn’t send the confirmation email\. Please try again\./);
+  assert.match(claimFlow, /response\.status === 409 \? "idle"/);
+  assert.match(claimFlow, /if \(response\.status === 409\) setStep\("preview"\)/);
+  assert.match(ownership, /logOwnershipEmail\(\{ requestId, claimId, providerCalled: true/);
 });
 
 test("email ownership alone cannot confirm a newsletter", () => {

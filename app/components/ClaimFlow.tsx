@@ -32,7 +32,7 @@ function readableError(code?: string) {
   if (code === "INVALID_EMAIL") return "Enter a valid creator email address.";
   if (code === "RESEND_CONFIG_MISSING") return "Confirmation email is not configured in production. Your profile remains pending; please contact Letterboard support.";
   if (code === "APP_URL_NOT_CONFIGURED") return "Confirmation links are temporarily unavailable. Please try again later.";
-  if (code === "RESEND_REQUEST_REJECTED") return "Resend rejected the confirmation email. Your profile remains pending; try sending again.";
+  if (code === "RESEND_REQUEST_REJECTED") return "We couldn’t send the confirmation email. Please try again.";
   if (code === "CLAIM_NOT_RESENDABLE") return "Your pending claim needs a new confirmation link. Contact support.";
   if (code === "DUPLICATE_NEWSLETTER" || code === "PUBLICATION_ALREADY_CLAIMED") return "This publication already has a Founding 100 place on Letterboard.";
   if (code === "CREATOR_ALREADY_CLAIMED") return "One creator may hold only one Founding 100 place.";
@@ -110,11 +110,18 @@ export function ClaimFlow({ open, onClose, initialNewsletter, liveNewsletter, on
         setNewsletter((current) => ({ ...current, slug: result.claim?.profileSlug }));
         onClaimCreated?.({ ...newsletter, slug: result.claim.profileSlug, status: "pending" });
       }
-      if (!response.ok || !result.claim || result.claim.emailStatus !== "sent") {
+      if (!response.ok) {
         const code = result.error ?? "EMAIL_SEND_FAILED";
-        setEmailStatus("failed");
+        setEmailStatus(response.status === 409 ? "idle" : "failed");
+        if (response.status === 409) setStep("preview");
         setError(readableError(code));
         capture("claim_flow_error", { error: code });
+        return;
+      }
+      if (!result.claim || result.claim.emailStatus !== "sent") {
+        setEmailStatus("failed");
+        setError(readableError(result.error ?? "EMAIL_SEND_FAILED"));
+        capture("claim_flow_error", { error: result.error ?? "EMAIL_SEND_FAILED" });
         return;
       }
       setEmailStatus("sent");

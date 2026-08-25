@@ -33,12 +33,6 @@ function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character] ?? character);
 }
 
-function domainOf(value: string | undefined) {
-  if (!value) return "unknown";
-  const address = value.match(/<\s*[^@<>\s]+@([^<>\s]+)\s*>/)?.[1] ?? value.match(/[^@\s]+@([^\s>]+)/)?.[1];
-  return address?.toLowerCase() ?? "unknown";
-}
-
 function sanitizeErrorCode(value: unknown, fallback: string) {
   if (typeof value !== "string") return fallback;
   const code = value.replace(/[^a-zA-Z0-9_.-]/g, "_").slice(0, 64).toUpperCase();
@@ -54,34 +48,22 @@ function sanitizeErrorMessage(value: unknown) {
 function logOwnershipEmail({
   requestId,
   claimId,
-  recipient,
-  from,
-  outcome,
   providerCalled,
   messageId,
   errorCode,
-  errorMessage,
 }: {
   requestId: string;
   claimId: string;
-  recipient?: string;
-  from?: string;
-  outcome: string;
   providerCalled: boolean;
   messageId?: string;
   errorCode?: string;
-  errorMessage?: string;
 }) {
   console.info("ownership email", {
     requestId,
     claimId,
-    recipientDomain: domainOf(recipient),
-    senderDomain: domainOf(from),
     providerCalled,
-    outcome,
     ...(messageId ? { messageId } : {}),
     ...(errorCode ? { errorCode } : {}),
-    ...(errorMessage ? { errorMessage } : {}),
   });
 }
 
@@ -102,11 +84,11 @@ export async function sendOwnershipEmail({
   const from = process.env.OWNERSHIP_EMAIL_FROM;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
   if (!apiKey || !from) {
-    logOwnershipEmail({ requestId, claimId, recipient, from, outcome: "config_missing", providerCalled: false, errorCode: "RESEND_CONFIG_MISSING" });
+    logOwnershipEmail({ requestId, claimId, providerCalled: false, errorCode: "RESEND_CONFIG_MISSING" });
     return { ok: false, reason: "RESEND_CONFIG_MISSING", errorCode: "RESEND_CONFIG_MISSING" };
   }
   if (!appUrl) {
-    logOwnershipEmail({ requestId, claimId, recipient, from, outcome: "app_url_missing", providerCalled: false, errorCode: "APP_URL_NOT_CONFIGURED" });
+    logOwnershipEmail({ requestId, claimId, providerCalled: false, errorCode: "APP_URL_NOT_CONFIGURED" });
     return { ok: false, reason: "APP_URL_NOT_CONFIGURED", errorCode: "APP_URL_NOT_CONFIGURED" };
   }
 
@@ -114,12 +96,12 @@ export async function sendOwnershipEmail({
   try {
     const origin = new URL(appUrl);
     if (origin.protocol !== "https:") {
-      logOwnershipEmail({ requestId, claimId, recipient, from, outcome: "app_url_invalid", providerCalled: false, errorCode: "APP_URL_NOT_CONFIGURED" });
+      logOwnershipEmail({ requestId, claimId, providerCalled: false, errorCode: "APP_URL_NOT_CONFIGURED" });
       return { ok: false, reason: "APP_URL_NOT_CONFIGURED", errorCode: "APP_URL_NOT_CONFIGURED" };
     }
     confirmationUrl = new URL(`/api/claims/confirm?token=${encodeURIComponent(rawToken)}`, origin).toString();
   } catch {
-    logOwnershipEmail({ requestId, claimId, recipient, from, outcome: "app_url_invalid", providerCalled: false, errorCode: "APP_URL_NOT_CONFIGURED" });
+    logOwnershipEmail({ requestId, claimId, providerCalled: false, errorCode: "APP_URL_NOT_CONFIGURED" });
     return { ok: false, reason: "APP_URL_NOT_CONFIGURED", errorCode: "APP_URL_NOT_CONFIGURED" };
   }
 
@@ -138,16 +120,16 @@ export async function sendOwnershipEmail({
     });
     const messageId = typeof data?.id === "string" ? data.id : null;
     if (!error && messageId) {
-      logOwnershipEmail({ requestId, claimId, recipient, from, outcome: "accepted", providerCalled: true, messageId });
+      logOwnershipEmail({ requestId, claimId, providerCalled: true, messageId });
       return { ok: true, messageId };
     }
     const errorCode = error ? sanitizeErrorCode(error.name, "RESEND_REQUEST_REJECTED") : "RESEND_MISSING_MESSAGE_ID";
     const errorMessage = sanitizeErrorMessage(error?.message);
-    logOwnershipEmail({ requestId, claimId, recipient, from, outcome: error ? "rejected" : "missing_message_id", providerCalled: true, messageId: messageId ?? undefined, errorCode, errorMessage });
+    logOwnershipEmail({ requestId, claimId, providerCalled: true, messageId: messageId ?? undefined, errorCode });
     return { ok: false, reason: "RESEND_REQUEST_REJECTED", errorCode, ...(errorMessage ? { errorMessage } : {}) };
   } catch (error) {
     const errorMessage = sanitizeErrorMessage(error instanceof Error ? error.message : undefined);
-    logOwnershipEmail({ requestId, claimId, recipient, from, outcome: "request_failed", providerCalled: true, errorCode: "RESEND_REQUEST_REJECTED", errorMessage });
+    logOwnershipEmail({ requestId, claimId, providerCalled: true, errorCode: "RESEND_REQUEST_REJECTED" });
     return { ok: false, reason: "RESEND_REQUEST_REJECTED", errorCode: "RESEND_REQUEST_REJECTED", ...(errorMessage ? { errorMessage } : {}) };
   }
 }

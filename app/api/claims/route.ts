@@ -49,17 +49,20 @@ export async function POST(request: Request) {
   if (!supabase) return NextResponse.json({ error: "BACKEND_NOT_CONFIGURED" }, { status: 503 });
   const requestId = randomUUID();
   try {
-    const existing = await supabase.from("newsletters").select("id,slug,founding_position,ownership_status").eq("normalized_url", normalizedInput.normalizedUrl).maybeSingle();
+    const existing = await supabase.from("newsletters").select("id,slug,canonical_url,founding_position,ownership_status").eq("normalized_url", normalizedInput.normalizedUrl).maybeSingle();
     if (existing.error) throw existing.error;
     if (existing.data) {
-      const pendingClaims = await supabase.from("claims").select("id,contact_email").eq("newsletter_id", existing.data.id).eq("status", "pending").limit(2);
-      if (pendingClaims.error) throw pendingClaims.error;
-      const pendingClaim = pendingClaims.data?.length === 1 ? pendingClaims.data[0] : null;
-      return NextResponse.json({
-        error: "PUBLICATION_ALREADY_CLAIMED",
-        newsletter: existing.data,
-        ...(pendingClaim ? { claim: { id: pendingClaim.id, status: "pending" as const, profileSlug: existing.data.slug, emailStatus: "failed" as const, maskedRecipient: typeof pendingClaim.contact_email === "string" ? maskEmail(pendingClaim.contact_email) : undefined } } : {}),
-      }, { status: 409 });
+      const activeClaims = await supabase.from("claims").select("id,status").eq("newsletter_id", existing.data.id).in("status", ["pending", "confirmed"]).limit(2);
+      if (activeClaims.error) throw activeClaims.error;
+      if (activeClaims.data?.length) {
+        return NextResponse.json({ error: "PUBLICATION_ALREADY_CLAIMED", newsletter: existing.data }, { status: 409 });
+      }
+      if (existing.data.ownership_status === "confirmed" || !["pending", "rejected"].includes(existing.data.ownership_status)) {
+        return NextResponse.json({ error: "CLAIM_NOT_ELIGIBLE" }, { status: 409 });
+      }
+      if (existing.data.canonical_url !== normalizedInput.canonicalUrl) {
+        return NextResponse.json({ error: "CLAIM_NOT_ELIGIBLE" }, { status: 409 });
+      }
     }
 
     let n: Awaited<ReturnType<typeof resolvePublicMetadata>>;
@@ -69,6 +72,7 @@ export async function POST(request: Request) {
       const code = metadataErrorCode(error);
       return NextResponse.json({ error: code }, { status: code === "UNSUPPORTED_URL" ? 422 : 400 });
     }
+    if (existing.data && n.normalizedUrl !== normalizedInput.normalizedUrl) return NextResponse.json({ error: "CLAIM_NOT_ELIGIBLE" }, { status: 409 });
 
     const created = await supabase.rpc("create_pending_claim", {
       p_canonical_url: n.canonicalUrl,
@@ -94,7 +98,7 @@ export async function POST(request: Request) {
     const email = await sendOwnershipEmail({ requestId, claimId: createdClaim.claim_id, recipient: creatorEmail, newsletterTitle: n.title, rawToken });
     const claimResponse = { id: createdClaim.claim_id, status: "pending" as const, profileSlug: createdClaim.profile_slug, emailStatus: email.ok ? "sent" as const : "failed" as const, maskedRecipient: maskEmail(creatorEmail) };
     if (!email.ok) return NextResponse.json({ error: email.reason, claim: claimResponse }, { status: 502 });
-    return NextResponse.json({ claim: claimResponse, messageId: email.messageId });
+    return NextResponse.json({ claim: claimResponse });
   } catch (error) {
     const code = databaseErrorCode(error);
     if (code) return NextResponse.json({ error: code }, { status: 409 });
