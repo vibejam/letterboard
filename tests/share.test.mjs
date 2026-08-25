@@ -88,6 +88,7 @@ test("clipboard-first platforms open only after a successful copy", () => {
   assert.match(button, /if \(!copied\) return;/);
   assert.match(button, /Your message is ready/);
   assert.match(button, /navigator\.clipboard/);
+  assert.equal((button.match(/recordShare\(plan, plan\.platform\)/g) ?? []).length, 0);
   assert.doesNotMatch(button, /share_posted|published successfully|posted successfully/i);
 });
 

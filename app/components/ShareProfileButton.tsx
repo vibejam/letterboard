@@ -134,7 +134,6 @@ export function ShareProfileButton({ slug, newsletterName, foundingPosition, tie
     if (!copied) return;
     if (plan.destination) {
       openNewTab(plan.destination);
-      recordShare(plan, plan.platform);
       capture("composer_opened", { platform: plan.platform, outcome: "opened" });
       capture("share_composer_opened", { platform: plan.platform, outcome: "opened" });
     }
@@ -155,7 +154,6 @@ export function ShareProfileButton({ slug, newsletterName, foundingPosition, tie
       setCopyPanel(null);
       if (plan.destination) {
         openNewTab(plan.destination);
-        recordShare(plan, plan.platform);
         capture("composer_opened", { platform: plan.platform, outcome: "opened", retry: true });
         capture("share_composer_opened", { platform: plan.platform, outcome: "opened", retry: true });
       }
