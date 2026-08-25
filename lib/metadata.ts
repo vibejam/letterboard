@@ -2,8 +2,8 @@ import dns from "node:dns/promises";
 import net from "node:net";
 import { normalizeNewsletterUrl } from "./urls.ts";
 
-export type LogoSource = "og:image" | "twitter:image" | "favicon" | "apple-touch-icon" | "json-ld" | "platform" | "monogram";
-export type LogoCandidate = { url: string; source: Exclude<LogoSource, "monogram"> };
+export type LogoSource = "og:image" | "twitter:image" | "apple-touch-icon" | "favicon" | "json-ld" | "platform" | "fallback";
+export type LogoCandidate = { url: string; source: Exclude<LogoSource, "fallback"> };
 
 const MAX_HTML_BYTES = 1_000_000;
 const MAX_IMAGE_BYTES = 1_500_000;
@@ -122,8 +122,8 @@ export function extractLogoCandidates(html: string): LogoCandidate[] {
   const add = (value: string | null, source: LogoCandidate["source"]) => { if (value && !candidates.some((candidate) => candidate.url === value)) candidates.push({ url: value, source }); };
   add(metaValue(html, ["og:image", "og:image:url"]), "og:image");
   add(metaValue(html, ["twitter:image", "twitter:image:src"]), "twitter:image");
-  add(linkValue(html, ["icon", "shortcut", "image_src"]), "favicon");
   add(linkValue(html, ["apple-touch-icon", "apple-touch-icon-precomposed"]), "apple-touch-icon");
+  add(linkValue(html, ["icon", "shortcut", "image_src"]), "favicon");
   add(jsonLdLogo(html), "json-ld");
   add(metaValue(html, ["substack:logo", "profile:image", "publication:image"]), "platform");
   return candidates;
@@ -188,7 +188,7 @@ export async function resolvePublicMetadata(input: string) {
   const title = metaValue(html, ["og:title", "twitter:title"]) ?? html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.trim() ?? url.hostname;
   const description = metaValue(html, ["og:description", "twitter:description", "description"]);
   let logoUrl: string | null = null;
-  let logoSource: LogoSource = "monogram";
+  let logoSource: LogoSource = "fallback";
   let logoWidth: number | null = null;
   let logoHeight: number | null = null;
   for (const candidate of extractLogoCandidates(html)) {

@@ -50,6 +50,22 @@ export function normalizeSharePlatform(value: string | null | undefined): ShareP
   return "unknown";
 }
 
+export function inferSharePlatformFromCanonicalUrl(value: string | null | undefined): SharePlatform {
+  if (!value) return "unknown";
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:") return "unknown";
+    const host = url.hostname.toLowerCase().replace(/^www\./, "");
+    if (host === "substack.com" || host.endsWith(".substack.com")) return "substack";
+    if (host === "medium.com" || host.endsWith(".medium.com")) return "medium";
+    if (host === "x.com" || host === "twitter.com") return "x";
+    if (host === "linkedin.com" || host.endsWith(".linkedin.com")) return "linkedin";
+  } catch {
+    return "unknown";
+  }
+  return "unknown";
+}
+
 export function publicProfileUrl(slug: string) {
   return SAFE_SLUG.test(slug) ? `https://www.letterboard.lol/${slug}` : null;
 }
@@ -127,7 +143,8 @@ export function createShareMessage(details: ShareDetails, platform = normalizeSh
 }
 
 export function buildSharePlan(details: ShareDetails): SharePlan {
-  const platform = normalizeSharePlatform(details.sourcePlatform);
+  const storedPlatform = normalizeSharePlatform(details.sourcePlatform);
+  const platform = storedPlatform === "unknown" ? inferSharePlatformFromCanonicalUrl(details.newsletterUrl) : storedPlatform;
   const profileUrl = safeExternalUrl(details.profileUrl);
   if (!profileUrl) throw new Error("INVALID_PROFILE_URL");
   const normalizedDetails = { ...details, profileUrl };

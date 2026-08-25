@@ -23,7 +23,7 @@ export type Newsletter = {
 
 export type BoardActivity = { name: string; detail: string; time: string; tone: Newsletter["tone"] };
 export type BoardViewData = { stats: { claimed: number; total: number }; leaderboard: Newsletter[]; activity: BoardActivity[] };
-export type BoardApiRow = { id: string; slug: string; title: string; description?: string | null; logo_url?: string | null; logo_source?: string | null; canonical_url: string; source_platform?: string | null; founding_position: number | null; founding_tier?: string | null; profile_views?: number | null; ownership_status: string };
+export type BoardApiRow = { id: string; slug: string; title: string; description?: string | null; logo_url?: string | null; logo_source?: string | null; canonical_url: string; source_platform?: string | null; founding_position: number | null; founding_tier?: string | null; newsletter_clicks?: number | null; ownership_status: string };
 export type BoardApiActivity = { id: number; event_type: string; created_at: string; newsletters?: { title?: string; slug?: string } | { title?: string; slug?: string }[] | null };
 
 const devFixturesEnabled = process.env.NEXT_PUBLIC_ENABLE_DEV_FIXTURES === "true";
@@ -69,7 +69,7 @@ export function mapBoardRow(row: BoardApiRow, index: number): Newsletter {
     logoUrl: row.logo_url ?? undefined,
     category: row.source_platform ?? "Newsletter",
     bid: 0,
-    clicks: Number(row.profile_views ?? 0),
+    clicks: Number(row.newsletter_clicks ?? 0),
     lastSeen: "live",
     initials: row.title.slice(0, 1).toUpperCase(),
     tone: liveTones[index % liveTones.length],
@@ -90,4 +90,8 @@ export const defaultBoardViewData: BoardViewData = { stats: boardStats, leaderbo
 
 export function formatNumber(value: number) {
   return new Intl.NumberFormat("en-US").format(value);
+}
+
+export function formatClicks(value: number) {
+  return `${formatNumber(value)} ${value === 1 ? "click" : "clicks"}`;
 }

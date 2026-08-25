@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { buildSharePlan, isWhitelistedShareUrl, publicProfileUrl, xCharacterLimit } from "../lib/share.ts";
+import { buildSharePlan, inferSharePlatformFromCanonicalUrl, isWhitelistedShareUrl, publicProfileUrl, xCharacterLimit } from "../lib/share.ts";
 
 const button = await readFile(new URL("../app/components/ShareProfileButton.tsx", import.meta.url), "utf8");
 const claimFlow = await readFile(new URL("../app/components/ClaimFlow.tsx", import.meta.url), "utf8");
@@ -70,6 +70,20 @@ test("unknown platforms copy and fall back to the verified publication URL", () 
   assert.equal(plan.destination, details.newsletterUrl);
   assert.equal(plan.fallback, true);
   assert.equal(plan.toast, "Your share message is copied.");
+});
+
+test("null source_platform safely falls back to the verified canonical URL host", () => {
+  const cases = [
+    ["https://signal.substack.com/", "substack"],
+    ["https://medium.com/@signal/hello", "medium"],
+    ["https://x.com/signal", "x"],
+    ["https://www.linkedin.com/newsletters/signal", "linkedin"],
+  ];
+  for (const [url, platform] of cases) {
+    assert.equal(inferSharePlatformFromCanonicalUrl(url), platform);
+    assert.equal(buildSharePlan({ ...details, sourcePlatform: null, newsletterUrl: url }).platform, platform);
+  }
+  assert.equal(inferSharePlatformFromCanonicalUrl("http://signal.substack.com/"), "unknown");
 });
 
 test("share destinations reject non-HTTPS URLs and non-platform hosts", () => {

@@ -29,9 +29,12 @@ alter table public.newsletters
   add column if not exists logo_width integer,
   add column if not exists logo_height integer;
 
+-- pgcrypto is installed in the verified `extensions` schema on production.
+-- Keep private email hashing schema-qualified and use claims.updated_at: the
+-- newsletters table does not have a confirmed_at column in this project.
 insert into public.creator_identities (identity_hash, verified_at)
 select distinct encode(extensions.digest(lower(trim(contact_email))::text, 'sha256'::text), 'hex'),
-       case when status = 'confirmed' then confirmed_at else null end
+       case when status = 'confirmed' then updated_at else null end
   from public.claims
  where contact_email is not null
 on conflict (identity_hash) do nothing;

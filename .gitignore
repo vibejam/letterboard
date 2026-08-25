@@ -40,6 +40,9 @@ next-env.d.ts
 /.sites-runtime/
 /outputs/
 /work/
+/supabase/.temp/
+/package.json.backup
+*.tsbuildinfo
 node_modules
 .next
 .sites-runtime

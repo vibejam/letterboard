@@ -77,7 +77,7 @@ export async function POST(request: Request) {
       p_title: n.title,
       p_description: n.description ?? null,
       p_logo_url: n.logoUrl ?? null,
-      p_logo_source: n.logoSource ?? "monogram",
+      p_logo_source: n.logoSource ?? "fallback",
       p_logo_width: n.logoWidth ?? null,
       p_logo_height: n.logoHeight ?? null,
       p_source_platform: n.sourcePlatform ?? "independent",

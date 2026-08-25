@@ -1,4 +1,4 @@
-export type LetterboardEvent = "board_viewed" | "claim_started" | "url_submitted" | "metadata_loaded" | "metadata_failed" | "claim_created" | "ownership_email_sent" | "ownership_confirmed" | "profile_viewed" | "share_card_opened" | "share_message_copied" | "share_intent_clicked" | "share_clicked" | "composer_opened" | "message_copied" | "fallback_used" | "top3_profile_clicked" | "claim_flow_error";
+export type LetterboardEvent = "board_viewed" | "claim_started" | "url_submitted" | "metadata_loaded" | "metadata_failed" | "claim_created" | "ownership_email_sent" | "ownership_confirmed" | "profile_viewed" | "newsletter_external_click" | "share_card_opened" | "share_message_copied" | "share_intent_clicked" | "share_clicked" | "composer_opened" | "message_copied" | "fallback_used" | "top3_profile_clicked" | "claim_flow_error";
 
 export function capture(event: LetterboardEvent, properties: Record<string, unknown> = {}) {
   const key = process.env.NEXT_PUBLIC_POSTHOG_KEY;

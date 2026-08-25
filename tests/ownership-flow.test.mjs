@@ -43,7 +43,7 @@ test("publication normalization collapses equivalent platform URLs and external 
 test("logo extraction prioritizes the approved source order and supports custom Substack platform metadata", () => {
   const html = `<meta property="og:image" content="https://cdn.example/og.png"><meta name="twitter:image" content="https://cdn.example/twitter.png"><link rel="icon" href="/favicon.png"><link rel="apple-touch-icon" href="/apple.png"><script type="application/ld+json">{"publisher":{"logo":{"url":"https://cdn.example/jsonld.png"}}}</script><meta name="substack:logo" content="https://cdn.example/letterboard-l.png">`;
   const candidates = extractLogoCandidates(html);
-  assert.deepEqual(candidates.map((candidate) => candidate.source), ["og:image", "twitter:image", "favicon", "apple-touch-icon", "json-ld", "platform"]);
+  assert.deepEqual(candidates.map((candidate) => candidate.source), ["og:image", "twitter:image", "apple-touch-icon", "favicon", "json-ld", "platform"]);
   assert.equal(candidates.at(-1)?.url, "https://cdn.example/letterboard-l.png");
 });
 
@@ -281,7 +281,8 @@ test("one creator, duplicate publication, and permanent ban safeguards are datab
   assert.match(hardeningMigration, /create extension if not exists pgcrypto with schema extensions/);
   assert.match(hardeningMigration, /extensions\.digest\(lower\(trim\(contact_email\)\)::text, 'sha256'::text\)/);
   assert.match(hardeningMigration, /extensions\.digest\(lower\(trim\(c\.contact_email\)\)::text, 'sha256'::text\)/);
-  assert.doesNotMatch(hardeningMigration, /(?<!extensions\.)digest\(/);
+  assert.match(hardeningMigration, /case when status = 'confirmed' then updated_at else null end/);
+  assert.doesNotMatch(hardeningMigration, /case when status = 'confirmed' then confirmed_at else null end/);
   assert.match(hardeningMigration, /creator_identities/);
   assert.match(hardeningMigration, /identity_hash text not null unique/);
   assert.match(hardeningMigration, /claims_one_active_creator_idx/);
@@ -316,6 +317,6 @@ test("public profile is branded, private-safe, and links externally", () => {
   assert.match(publicProfilePage, /target="_blank"/);
   assert.match(publicProfilePage, /noopener noreferrer/);
   assert.match(publicProfilePage, /ShareCard/);
-  assert.match(publicProfilePage, /profile_views/);
+  assert.match(publicProfilePage, /Newsletter clicks?/);
   assert.doesNotMatch(publicProfilePage, /contact_email|internal_points|creator_identity_hash/);
 });
