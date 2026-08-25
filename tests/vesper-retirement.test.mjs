@@ -31,4 +31,5 @@ test("onboarding guards rapid profile-preview and Done transitions", async () =>
   assert.match(claimFlow, /disabled=\{transitioning\}/);
   assert.match(claimFlow, /function closeProfile/);
   assert.match(claimFlow, /function previewProfile/);
+  assert.match(claimFlow, /setStep\("profile"\); setTransitioning\(false\)/);
 });

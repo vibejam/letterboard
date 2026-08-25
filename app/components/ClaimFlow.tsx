@@ -154,7 +154,7 @@ export function ClaimFlow({ open, onClose, initialNewsletter, liveNewsletter, on
   }
 
   function keepPending() { setStatus("pending"); setStep("success"); }
-  function previewProfile() { previewedProfile.current = true; setTransitioning(true); setStep("profile"); window.setTimeout(() => setTransitioning(false), 0); }
+  function previewProfile() { previewedProfile.current = true; setStep("profile"); setTransitioning(false); }
   function closeProfile() { previewedProfile.current = true; setTransitioning(true); onClose(); }
   const shareSlug = newsletter.slug;
   const sharePosition = newsletter.foundingPosition ?? boardCount.claimed + 1;
