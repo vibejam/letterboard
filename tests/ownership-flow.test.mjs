@@ -4,6 +4,7 @@ import test from "node:test";
 import { createOpaqueToken, creatorIdentityHash, maskEmail, normalizeCreatorEmail, sendOwnershipEmail } from "../lib/ownership.ts";
 import { extractLogoCandidates, resolvePublicMetadata } from "../lib/metadata.ts";
 import { normalizeNewsletterUrl, safeExternalUrl } from "../lib/urls.ts";
+import { inferVerifiedPlatform } from "../lib/platform.ts";
 
 const claimsRoute = await readFile(new URL("../app/api/claims/route.ts", import.meta.url), "utf8");
 const confirmRoute = await readFile(new URL("../app/api/claims/confirm/route.ts", import.meta.url), "utf8");
@@ -24,6 +25,7 @@ const publicProfilePage = await readFile(new URL("../app/[slug]/page.tsx", impor
 const migration = await readFile(new URL("../supabase/migrations/20260823120000_ownership_confirmation_transaction.sql", import.meta.url), "utf8");
 const hardeningMigration = await readFile(new URL("../supabase/migrations/20260824192622_creator_identity_bans_and_logo_source.sql", import.meta.url), "utf8");
 const dualVerificationMigration = await readFile(new URL("../supabase/migrations/20260825132929_dual_ownership_verification.sql", import.meta.url), "utf8");
+const inferredPlatformMigration = await readFile(new URL("../supabase/migrations/20260825140318_infer_platform_for_ownership_verification.sql", import.meta.url), "utf8");
 const platformPanel = await readFile(new URL("../app/components/PlatformVerificationPanel.tsx", import.meta.url), "utf8");
 
 test("creator email is required, validated, and masked", () => {
@@ -332,6 +334,20 @@ test("platform verification methods are safe and never store raw codes", () => {
   assert.match(platformPanel, /one-time code/);
   assert.doesNotMatch(dualVerificationMigration, /raw_code|verification_code text/);
   assert.doesNotMatch(platformPanel, /contact_email|internal_points|platformSubject/);
+});
+
+test("platform verification supports public platform codes and infers null source metadata safely", () => {
+  assert.equal(inferVerifiedPlatform(null, "https://writer.medium.com/story"), "medium");
+  assert.equal(inferVerifiedPlatform(null, "https://x.com/writer"), "x");
+  assert.equal(inferVerifiedPlatform(null, "https://www.linkedin.com/in/writer"), "linkedin");
+  assert.equal(inferVerifiedPlatform(null, "https://writer.substack.com/"), "substack");
+  assert.equal(inferVerifiedPlatform(null, "https://writer.beehiiv.com/"), "beehiiv");
+  assert.match(inferredPlatformMigration, /platform_public_code/);
+  assert.match(inferredPlatformMigration, /coalesce\(n\.source_platform/);
+  assert.match(inferredPlatformMigration, /manual_review_required/);
+  assert.match(platformPanel, /Medium publication or author page/);
+  assert.match(platformPanel, /public bio of the X profile/);
+  assert.match(platformPanel, /LinkedIn public profile or page/);
 });
 
 test("live board reconciliation refreshes without a manual reload", () => {

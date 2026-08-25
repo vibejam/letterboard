@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { verifyDnsOwnershipCode, verifyPublicOwnershipCode } from "@/lib/metadata";
 import { hashVerificationValue, PLATFORM_SESSION_COOKIE, safeVerificationCode } from "@/lib/platformVerification";
+import { inferVerifiedPlatform } from "@/lib/platform";
 
 export const runtime = "nodejs";
 
@@ -23,9 +24,10 @@ export async function POST(request: Request) {
   const newsletter = claimRow.data.newsletters as unknown as { id: string; slug: string; title: string; canonical_url: string; source_platform: string | null } | null;
   if (!newsletter) return NextResponse.json({ error: "PLATFORM_VERIFICATION_UNAVAILABLE" }, { status: 409 });
 
-  const verified = newsletter.source_platform === "substack"
+  const platform = inferVerifiedPlatform(newsletter.source_platform, newsletter.canonical_url);
+  const verified = ["substack", "medium", "x", "linkedin"].includes(platform)
     ? await verifyPublicOwnershipCode(newsletter.canonical_url, code)
-    : newsletter.source_platform === "independent"
+    : platform === "independent"
       ? await verifyDnsOwnershipCode(newsletter.canonical_url, code)
       : false;
   if (!verified) return NextResponse.json({ error: "PLATFORM_CODE_NOT_FOUND" }, { status: 422 });
