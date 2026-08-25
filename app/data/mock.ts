@@ -22,12 +22,12 @@ export type Newsletter = {
 };
 
 export type BoardActivity = { name: string; detail: string; time: string; tone: Newsletter["tone"] };
-export type BoardViewData = { stats: { claimed: number; total: number }; leaderboard: Newsletter[]; activity: BoardActivity[] };
+export type BoardViewData = { stats: { reserved: number; claimed: number; open: number; total: number }; leaderboard: Newsletter[]; activity: BoardActivity[] };
 export type BoardApiRow = { id: string; slug: string; title: string; description?: string | null; logo_url?: string | null; logo_source?: string | null; canonical_url: string; source_platform?: string | null; founding_position: number | null; founding_tier?: string | null; newsletter_clicks?: number | null; ownership_status: string };
 export type BoardApiActivity = { id: number; event_type: string; created_at: string; newsletters?: { title?: string; slug?: string } | { title?: string; slug?: string }[] | null };
 
 const devFixturesEnabled = process.env.NEXT_PUBLIC_ENABLE_DEV_FIXTURES === "true";
-export const boardStats = devFixturesEnabled ? { online: 126, visitors: 8420, claimed: 37, total: 100 } : { online: 0, visitors: 0, claimed: 0, total: 100 };
+export const boardStats = devFixturesEnabled ? { reserved: 0, claimed: 37, open: 63, total: 100 } : { reserved: 0, claimed: 0, open: 100, total: 100 };
 
 const fixtureLeaderboard: Newsletter[] = [
   { id: "daily-signal", name: "The Daily Signal", url: "thedailysignal.co", description: "A sharp daily briefing for people building what comes next.", category: "Technology", bid: 842, clicks: 1204, lastSeen: "8 minutes ago", initials: "T", tone: "ink", status: "founding", foundingTier: "og" },

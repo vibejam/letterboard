@@ -22,9 +22,10 @@ const details = {
 };
 
 for (const platform of ["substack", "medium", "x", "linkedin", "unknown"]) {
-  test(`${platform} share message injects only the public name and profile URL`, () => {
+test(`${platform} share message injects only the public name and profile URL`, () => {
     const plan = buildSharePlan({ ...details, sourcePlatform: platform });
     assert.match(plan.message, /Signal Letter/);
+    assert.match(plan.message, /#07 Legend/);
     assert.match(plan.message, /https:\/\/www\.letterboard\.lol\/signal-letter/);
     assert.equal((plan.message.match(/https:\/\/www\.letterboard\.lol\/signal-letter/g) ?? []).length, 1);
     assert.doesNotMatch(plan.message, /private|email|internal_points|confirmation|token|admin|newsletterUrl|sourcePlatform/i);
@@ -32,11 +33,11 @@ for (const platform of ["substack", "medium", "x", "linkedin", "unknown"]) {
 }
 
 test("platform messages match the exact public templates", () => {
-  assert.equal(buildSharePlan({ ...details, sourcePlatform: "x" }).message, "Locked in my spot in Letterboard's Founding 100 — Signal Letter is officially one of the first 100 in.\n\nhttps://www.letterboard.lol/signal-letter");
-  assert.equal(buildSharePlan({ ...details, sourcePlatform: "linkedin" }).message, "Proud to share that Signal Letter has secured a place in Letterboard's Founding 100 — a small, curated first cohort on a new directory for independent newsletters. Good feeling to have the work recognized this early.\n\nhttps://www.letterboard.lol/signal-letter");
-  assert.equal(buildSharePlan({ ...details, sourcePlatform: "substack" }).message, "Signal Letter just claimed a spot in Letterboard's Founding 100 🎉 First 100 in, no more after that. Come take a look —\n\nhttps://www.letterboard.lol/signal-letter");
-  assert.equal(buildSharePlan({ ...details, sourcePlatform: "medium" }).message, "Signal Letter has been selected into Letterboard's Founding 100 — the first wave of creators building out a new home for independent newsletters. Excited to be this early.\n\nhttps://www.letterboard.lol/signal-letter");
-  assert.equal(buildSharePlan({ ...details, sourcePlatform: "unknown" }).message, "Signal Letter — Founding 100, Letterboard.\n\nhttps://www.letterboard.lol/signal-letter");
+  assert.equal(buildSharePlan({ ...details, sourcePlatform: "x" }).message, "Locked in #07 Legend on Letterboard’s Founding 100 — Signal Letter is officially one of the first 100 in.\n\nhttps://www.letterboard.lol/signal-letter");
+  assert.equal(buildSharePlan({ ...details, sourcePlatform: "linkedin" }).message, "Proud to share that Signal Letter has secured #07 Legend on Letterboard’s Founding 100 — a small, curated first cohort on a new directory for independent newsletters. Good feeling to have the work recognized this early.\n\nhttps://www.letterboard.lol/signal-letter");
+  assert.equal(buildSharePlan({ ...details, sourcePlatform: "substack" }).message, "Signal Letter just claimed #07 Legend on Letterboard’s Founding 100 🎉 First 100 in, no more after that. Come take a look —\n\nhttps://www.letterboard.lol/signal-letter");
+  assert.equal(buildSharePlan({ ...details, sourcePlatform: "medium" }).message, "Signal Letter has been selected into #07 Legend on Letterboard’s Founding 100 — the first wave of creators building out a new home for independent newsletters. Excited to be this early.\n\nhttps://www.letterboard.lol/signal-letter");
+  assert.equal(buildSharePlan({ ...details, sourcePlatform: "unknown" }).message, "Signal Letter — #07 Legend on Letterboard’s Founding 100.\n\nhttps://www.letterboard.lol/signal-letter");
 });
 
 test("Substack copies first and opens the signed-in web experience", () => {
@@ -51,15 +52,15 @@ test("Medium uses the supported writing destination without claiming a draft was
   const plan = buildSharePlan({ ...details, sourcePlatform: "medium" });
   assert.equal(plan.destination, "https://medium.com/new-story");
   assert.equal(plan.copyBeforeOpen, true);
-  assert.equal(plan.toast, "Your Medium message is copied — paste it into your draft and publish when ready.");
+  assert.equal(plan.toast, "Your Medium message is copied — paste it into Medium and publish when ready.");
   assert.doesNotMatch(plan.toast, /created|published/i);
 });
 
-test("pending review sharing uses the same status-signaling templates without private fields", () => {
-  const plan = buildSharePlan({ ...details, foundingPosition: null, tier: null, claimState: "pending_review", sourcePlatform: "substack" });
+test("pending review sharing uses the reserved position and tier without private fields", () => {
+  const plan = buildSharePlan({ ...details, claimState: "pending_review", sourcePlatform: "substack" });
   assert.equal(plan.destination, "https://substack.com/home");
   assert.equal(plan.copyBeforeOpen, true);
-  assert.equal(plan.message, "Signal Letter just claimed a spot in Letterboard's Founding 100 🎉 First 100 in, no more after that. Come take a look —\n\nhttps://www.letterboard.lol/signal-letter");
+  assert.equal(plan.message, "Signal Letter just claimed #07 Legend on Letterboard’s Founding 100 🎉 First 100 in, no more after that. Come take a look —\n\nhttps://www.letterboard.lol/signal-letter");
 });
 
 test("X uses an encoded web intent with the profile URL and stays within 280 characters", () => {
@@ -80,7 +81,7 @@ test("LinkedIn copies the message and opens the post composer", () => {
   const plan = buildSharePlan({ ...details, sourcePlatform: "linkedin" });
   assert.equal(plan.destination, "https://www.linkedin.com/feed/?shareActive=true");
   assert.equal(plan.copyBeforeOpen, true);
-  assert.equal(plan.toast, "Your LinkedIn message is copied — paste the message into your post.");
+  assert.equal(plan.toast, "Your LinkedIn message is copied — paste it into LinkedIn and post when ready.");
 });
 
 test("clipboard-first platforms open only after a successful copy", () => {
@@ -126,6 +127,17 @@ test("share destinations reject non-HTTPS URLs and non-platform hosts", () => {
   assert.equal(isWhitelistedShareUrl("http://x.com/intent/post", "x"), false);
   assert.equal(isWhitelistedShareUrl("https://evil.example/intent/post", "x"), false);
   assert.equal(isWhitelistedShareUrl("https://x.com/intent/post?text=hello", "x"), true);
+});
+
+test("tier boundaries are represented in the position-specific public share", () => {
+  for (const [position, tier] of [[1, "og"], [5, "og"], [6, "legend"], [10, "legend"], [11, "icon"], [50, "icon"], [51, "pioneer"], [100, "pioneer"]]) {
+    const plan = buildSharePlan({ ...details, foundingPosition: position, tier, sourcePlatform: "copy" });
+    assert.match(plan.message, new RegExp(`#${String(position).padStart(2, "0")} ${tier[0].toUpperCase() + tier.slice(1)}`));
+  }
+});
+
+test("position and tier are required for a founding share", () => {
+  assert.throws(() => buildSharePlan({ ...details, foundingPosition: null, tier: null, sourcePlatform: "copy" }), /INVALID_FOUNDING_POSITION/);
 });
 
 test("the chooser keeps destination selection explicit and supports copy/share-sheet paths", () => {

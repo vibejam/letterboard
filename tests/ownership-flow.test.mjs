@@ -12,6 +12,7 @@ const resendRoute = await readFile(new URL("../app/api/claims/resend/route.ts", 
 const ownership = await readFile(new URL("../lib/ownership.ts", import.meta.url), "utf8");
 const claimFlow = await readFile(new URL("../app/components/ClaimFlow.tsx", import.meta.url), "utf8");
 const repairRoute = await readFile(new URL("../app/api/admin/claims/repair/route.ts", import.meta.url), "utf8");
+const reserveRepairRoute = await readFile(new URL("../app/api/admin/claims/reserve-positions/route.ts", import.meta.url), "utf8");
 const banRoute = await readFile(new URL("../app/api/admin/creators/ban/route.ts", import.meta.url), "utf8");
 const boardRoute = await readFile(new URL("../app/api/board/route.ts", import.meta.url), "utf8");
 const boardLib = await readFile(new URL("../lib/board.ts", import.meta.url), "utf8");
@@ -33,6 +34,7 @@ const manualReviewMigration = await readFile(new URL("../supabase/migrations/202
 const reviewRoute = await readFile(new URL("../app/api/admin/reviews/route.ts", import.meta.url), "utf8");
 const spreadWord = await readFile(new URL("../app/components/SpreadTheWord.tsx", import.meta.url), "utf8");
 const reportRoute = await readFile(new URL("../app/api/reports/route.ts", import.meta.url), "utf8");
+const reservationMigration = await readFile(new URL("../supabase/migrations/20260825190120_reserve_founding_position_on_email_confirmation.sql", import.meta.url), "utf8");
 
 test("creator email is required, validated, and masked", () => {
   assert.equal(normalizeCreatorEmail(undefined), null);
@@ -231,10 +233,10 @@ test("homepage presents Founding Mark onboarding copy and truthful empty states"
   assert.match(homeClient, /Paste your newsletter URL/);
   assert.match(homeClient, /Claim my spot/);
   assert.match(homeClient, /#1–5 OG · #6–10 Legend · #11–50 Icon · #51–100 Pioneer/);
-  assert.match(homeClient, /Founding spots claimed/);
+  assert.match(homeClient, /places open/);
   assert.match(homeClient, /After the Founding 100 closes, Spotlight opens for featured visibility without changing organic founding status\./);
-  assert.match(homeClient, /board\.stats\.claimed === 1 \? "place" : "places"/);
-  assert.match(homeClient, /board\.stats\.total - board\.stats\.claimed/);
+  assert.match(homeClient, /board\.stats\.reserved === 1 \? "place" : "places"/);
+  assert.match(homeClient, /board\.stats\.open/);
   assert.doesNotMatch(homeClient, /visitors|online now|fake activity/i);
   assert.match(leaderboard, /Who gets there first\?/);
   assert.match(leaderboard, /Letterboard starts empty\. The first verified newsletter takes #01\./);
@@ -242,6 +244,32 @@ test("homepage presents Founding Mark onboarding copy and truthful empty states"
   assert.match(leaderboard, /The live board\./);
   assert.doesNotMatch(leaderboard, /First on Letterboard|places claimed|Hero/);
   assert.match(boardmark, /Founding Mark/);
+});
+
+test("email confirmation reserves a visible pending position and refreshes the board without a reload", () => {
+  assert.match(reservationMigration, /verification_state = 'email_verified'/);
+  assert.match(reservationMigration, /founding_position = v_position/);
+  assert.match(reservationMigration, /founding_tier = v_tier/);
+  assert.match(boardLib, /in\("ownership_status", \["pending", "confirmed"\]\)/);
+  assert.match(boardLib, /reserved/);
+  assert.match(leaderboard, /Pending review/);
+  assert.match(leaderboard, /stats\.reserved/);
+  assert.match(homeClient, /fetch\("\/api\/board", \{ cache: "no-store" \}\)/);
+  assert.match(homeClient, /router\.refresh\(\)/);
+  assert.match(confirmationPage, /founding_tier/);
+  assert.match(spreadWord, /foundingTier/);
+  assert.match(reserveRepairRoute, /ADMIN_REVIEW_TOKEN/);
+  assert.match(reserveRepairRoute, /reserve_pending_founding_positions/);
+  assert.match(reserveRepairRoute, /export async function POST/);
+  assert.doesNotMatch(reserveRepairRoute, /contact_email|rawToken|internal_points/);
+});
+
+test("rejected reservations remain historical while releasing their position", () => {
+  assert.match(reservationMigration, /create or replace function public\.reserve_pending_founding_positions/);
+  assert.match(reservationMigration, /where c\.status = 'pending'/);
+  assert.match(retryMigration, /founding_position = null/);
+  assert.match(retryMigration, /insert into public\.claims/);
+  assert.doesNotMatch(reservationMigration, /delete from public\.(claims|newsletters|creator_identities|ownership_verifications)/i);
 });
 
 test("public copy has no stale Boardmark or Hero terminology", async () => {

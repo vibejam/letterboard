@@ -8,7 +8,7 @@ import { ShareCard } from "./ShareCard";
 import { ShareProfileButton } from "./ShareProfileButton";
 import { capture } from "@/lib/posthog";
 
-type ClaimFlowProps = { open: boolean; onClose: () => void; initialNewsletter?: Newsletter; liveNewsletter?: Newsletter; onClaimCreated?: (newsletter: Newsletter) => void; boardStatsOverride?: { claimed: number; total: number } };
+type ClaimFlowProps = { open: boolean; onClose: () => void; initialNewsletter?: Newsletter; liveNewsletter?: Newsletter; onClaimCreated?: (newsletter: Newsletter) => void };
 type Step = "url" | "preview" | "ownership" | "success" | "profile";
 type EmailStatus = "idle" | "sending" | "sent" | "failed";
 type ApiResult = {

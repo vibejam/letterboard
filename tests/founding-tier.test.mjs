@@ -11,6 +11,7 @@ const boardLib = await readFile(new URL("../lib/board.ts", import.meta.url), "ut
 const profileRoute = await readFile(new URL("../app/api/profiles/[slug]/route.ts", import.meta.url), "utf8");
 const adminRoute = await readFile(new URL("../app/api/admin/reviews/route.ts", import.meta.url), "utf8");
 const manualReviewMigration = await readFile(new URL("../supabase/migrations/20260825163447_founding_100_manual_review_flow.sql", import.meta.url), "utf8");
+const reservationMigration = await readFile(new URL("../supabase/migrations/20260825190120_reserve_founding_position_on_email_confirmation.sql", import.meta.url), "utf8");
 
 const tiers = [
   { first: 1, last: 5, tier: "og", points: 1000 },
@@ -74,4 +75,14 @@ test("confirmation assigns the tier exactly once in the transaction", () => {
   assert.match(dualVerificationMigration, /claim_founding_position/);
   assert.match(dualVerificationMigration, /founding_tier = v_tier/);
   assert.match(confirmRoute, /status: "email_verified"/);
+});
+
+test("email confirmation reserves a position and repair is protected and idempotent", () => {
+  assert.match(reservationMigration, /perform public\.reserve_founding_position_for_claim\(v_claim_id\)/);
+  assert.match(reservationMigration, /create or replace function public\.reserve_pending_founding_positions/);
+  assert.match(reservationMigration, /c\.status = 'pending'/);
+  assert.match(reservationMigration, /c\.verification_state = 'email_verified'/);
+  assert.match(reservationMigration, /n\.founding_position is null or n\.founding_tier is null/);
+  assert.match(reservationMigration, /revoke execute on function public\.reserve_pending_founding_positions\(\) from public, anon, authenticated/);
+  assert.doesNotMatch(reservationMigration, /vesper|crypto.?savana/i);
 });

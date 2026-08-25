@@ -80,24 +80,30 @@ export function isWhitelistedShareUrl(value: string, platform: NativeSharePlatfo
 }
 
 function baseMessage(details: ShareDetails) {
-  return { name: clean(details.newsletterName), profile: details.profileUrl };
+  const position = details.foundingPosition;
+  const tier = details.tier;
+  if (typeof position !== "number" || !Number.isInteger(position) || position < 1 || position > 100) throw new Error("INVALID_FOUNDING_POSITION");
+  if (!tier || !(["og", "legend", "icon", "pioneer"] as PublicTier[]).includes(tier)) throw new Error("INVALID_PUBLIC_TIER");
+  const normalizedPosition = position as number;
+  const tierLabel = tier[0].toUpperCase() + tier.slice(1);
+  return { name: clean(details.newsletterName), position: `#${String(normalizedPosition).padStart(2, "0")}`, tier: tierLabel, profile: details.profileUrl };
 }
 
 function xMessage(details: ShareDetails) {
-  const { name, profile } = baseMessage(details);
-  const prefix = "Locked in my spot in Letterboard's Founding 100 — ";
+  const { name, position, tier, profile } = baseMessage(details);
+  const prefix = `Locked in ${position} ${tier} on Letterboard’s Founding 100 — `;
   const suffix = " is officially one of the first 100 in.";
   const availableNameLength = Math.max(1, X_CHARACTER_LIMIT - prefix.length - suffix.length - profile.length - 2);
   return `${prefix}${name.slice(0, availableNameLength)}${suffix}\n\n${profile}`;
 }
 
 function exactMessage(details: ShareDetails, platform: SharePlatform) {
-  const { name, profile } = baseMessage(details);
+  const { name, position, tier, profile } = baseMessage(details);
   if (platform === "x") return xMessage(details);
-  if (platform === "linkedin") return `Proud to share that ${name} has secured a place in Letterboard's Founding 100 — a small, curated first cohort on a new directory for independent newsletters. Good feeling to have the work recognized this early.\n\n${profile}`;
-  if (platform === "substack") return `${name} just claimed a spot in Letterboard's Founding 100 🎉 First 100 in, no more after that. Come take a look —\n\n${profile}`;
-  if (platform === "medium") return `${name} has been selected into Letterboard's Founding 100 — the first wave of creators building out a new home for independent newsletters. Excited to be this early.\n\n${profile}`;
-  return `${name} — Founding 100, Letterboard.\n\n${profile}`;
+  if (platform === "linkedin") return `Proud to share that ${name} has secured ${position} ${tier} on Letterboard’s Founding 100 — a small, curated first cohort on a new directory for independent newsletters. Good feeling to have the work recognized this early.\n\n${profile}`;
+  if (platform === "substack") return `${name} just claimed ${position} ${tier} on Letterboard’s Founding 100 🎉 First 100 in, no more after that. Come take a look —\n\n${profile}`;
+  if (platform === "medium") return `${name} has been selected into ${position} ${tier} on Letterboard’s Founding 100 — the first wave of creators building out a new home for independent newsletters. Excited to be this early.\n\n${profile}`;
+  return `${name} — ${position} ${tier} on Letterboard’s Founding 100.\n\n${profile}`;
 }
 
 export function createShareMessage(details: ShareDetails, platform = normalizeSharePlatform(details.sourcePlatform)) {
@@ -116,7 +122,7 @@ export function buildSharePlan(details: ShareDetails, selectedPlatform?: SharePl
   if (platform === "copy") return { platform, message, destination: null, copyBeforeOpen: true, toast: "Your share message is copied.", fallback: false, shareUrl: profileUrl, copyText: message };
   if (platform === "share") return { platform, message, destination: null, copyBeforeOpen: true, toast: "Choose an app from your share sheet.", fallback: false, shareUrl: profileUrl };
   if (platform === "substack") return { platform, message, destination: "https://substack.com/home", copyBeforeOpen: true, toast: "Your Note is copied — paste it into Substack and post when ready.", fallback: false, shareUrl: profileUrl };
-  if (platform === "medium") return { platform, message, destination: "https://medium.com/new-story", copyBeforeOpen: true, toast: "Your Medium message is copied — paste it into your draft and publish when ready.", fallback: false, shareUrl: profileUrl };
+  if (platform === "medium") return { platform, message, destination: "https://medium.com/new-story", copyBeforeOpen: true, toast: "Your Medium message is copied — paste it into Medium and publish when ready.", fallback: false, shareUrl: profileUrl };
   if (platform === "x") {
     const destination = new URL("https://x.com/intent/post");
     destination.searchParams.set("text", message);
@@ -124,7 +130,7 @@ export function buildSharePlan(details: ShareDetails, selectedPlatform?: SharePl
     if (!isWhitelistedShareUrl(intentUrl, "x")) throw new Error("UNSUPPORTED_URL");
     return { platform, message, destination: intentUrl, copyBeforeOpen: false, toast: "Your X composer is ready — review it and click Post.", fallback: false, shareUrl: profileUrl };
   }
-  if (platform === "linkedin") return { platform, message, destination: "https://www.linkedin.com/feed/?shareActive=true", copyBeforeOpen: true, toast: "Your LinkedIn message is copied — paste the message into your post.", fallback: false, shareUrl: profileUrl };
+  if (platform === "linkedin") return { platform, message, destination: "https://www.linkedin.com/feed/?shareActive=true", copyBeforeOpen: true, toast: "Your LinkedIn message is copied — paste it into LinkedIn and post when ready.", fallback: false, shareUrl: profileUrl };
   return { platform, message, destination: safeExternalUrl(details.newsletterUrl), copyBeforeOpen: true, toast: "Your share message is copied.", fallback: true, shareUrl: profileUrl };
 }
 

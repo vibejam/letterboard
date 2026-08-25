@@ -3,6 +3,7 @@ import { NewsletterLogo } from "./Brand";
 import { ShareProfileButton } from "./ShareProfileButton";
 import { inferVerifiedPlatform } from "@/lib/platform";
 import { safeExternalUrl } from "@/lib/urls";
+import type { BoardmarkTier } from "./Boardmark";
 
 function platformLabel(value: string) {
   if (value === "substack") return "Substack";
@@ -21,6 +22,7 @@ export function SpreadTheWord({
   canonicalUrl,
   sourcePlatform,
   foundingPosition,
+  foundingTier,
   logoUrl,
 }: {
   newsletterId?: string;
@@ -29,6 +31,7 @@ export function SpreadTheWord({
   canonicalUrl?: string | null;
   sourcePlatform?: string | null;
   foundingPosition?: number | null;
+  foundingTier?: BoardmarkTier | null;
   logoUrl?: string | null;
 }) {
   const platform = inferVerifiedPlatform(sourcePlatform, canonicalUrl);
@@ -38,8 +41,8 @@ export function SpreadTheWord({
     <p className="hero-label">FOUNDING 100 / OPTIONAL</p>
     <h1>Spread the word</h1>
     <p className="spread-word-panel__lede">You’ve secured an early place on Letterboard’s Founding 100 — the first 100 newsletters on the board. Share your place with your readers and let them see what you’ve claimed.</p>
-    <div className="spread-word-panel__publication"><NewsletterLogo src={safeExternalUrl(logoUrl)} alt={`${title} logo`} initials={initials} /><div><strong>{title}</strong><span>{platformLabel(platform)}</span></div>{foundingPosition ? <b>#{String(foundingPosition).padStart(2, "0")}</b> : <b>Pending review</b>}</div>
+    <div className="spread-word-panel__publication"><NewsletterLogo src={safeExternalUrl(logoUrl)} alt={`${title} logo`} initials={initials} /><div><strong>{title}</strong><span>{platformLabel(platform)}</span></div>{foundingPosition ? <b>#{String(foundingPosition).padStart(2, "0")} {foundingTier ? foundingTier.toUpperCase() : ""}</b> : <b>Pending review</b>}</div>
     <p className="spread-word-panel__note">Sharing is optional. Your place is already reserved.</p>
-    <div className="spread-word-panel__actions">{slug ? <ShareProfileButton slug={slug} newsletterId={newsletterId} newsletterName={title} foundingPosition={foundingPosition} sourcePlatform={platform} newsletterUrl={externalUrl} claimState="pending_review" label="Share my place" /> : null}<Link className="secondary-button" href="/">Maybe later</Link><Link className="secondary-button" href="/#board">Return to the board</Link></div>
+    <div className="spread-word-panel__actions">{slug && foundingPosition && foundingTier ? <ShareProfileButton slug={slug} newsletterId={newsletterId} newsletterName={title} foundingPosition={foundingPosition} tier={foundingTier} sourcePlatform={platform} newsletterUrl={externalUrl} claimState="pending_review" label="Share my place" /> : null}<Link className="secondary-button" href="/">Maybe later</Link><Link className="secondary-button" href="/#board">Return to the board</Link></div>
   </div>;
 }

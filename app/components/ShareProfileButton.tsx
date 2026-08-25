@@ -24,15 +24,16 @@ function openNewTab(value: string) {
   try {
     url = new URL(value);
   } catch {
-    return;
+    return false;
   }
-  if (url.protocol !== "https:") return;
+  if (url.protocol !== "https:") return false;
   const anchor = document.createElement("a");
   anchor.href = url.toString();
   anchor.target = "_blank";
   anchor.rel = "noopener noreferrer";
   anchor.referrerPolicy = "no-referrer";
   anchor.click();
+  return true;
 }
 
 export function ShareProfileButton({ slug, newsletterName, foundingPosition, tier, sourcePlatform, newsletterUrl, newsletterId, claimState = "confirmed", label = "Share your place →" }: ShareProfileButtonProps) {
@@ -130,10 +131,10 @@ export function ShareProfileButton({ slug, newsletterName, foundingPosition, tie
       return;
     }
 
+    const opened = plan.destination ? openNewTab(plan.destination) : false;
     const copied = await copyPlan(plan);
     if (!copied) return;
-    if (plan.destination) {
-      openNewTab(plan.destination);
+    if (opened) {
       capture("composer_opened", { platform: plan.platform, outcome: "opened" });
       capture("share_composer_opened", { platform: plan.platform, outcome: "opened" });
     }
